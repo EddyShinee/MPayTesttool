@@ -8,7 +8,7 @@ import datetime
 import jwt  # PyJWT
 import base64
 import importlib
-from ApiPage import PaymentToken
+from ApiPage import PaymentToken, PaymentAction
 import os
 
 # st.title("🔗 2C2P API Simulator")
@@ -16,12 +16,15 @@ import os
 st.sidebar.title("Payment API List")
 api_selected = st.sidebar.radio("Choose API", Sidebar.api_list)
 
-# Biến tên thành tên file
-module_file = f"ApiPage/{api_selected.replace(' ', '')}.py"
+from ApiPage import PaymentToken  # import các trang khác nếu có thêm
 
-# Kiểm tra và thực thi
-if os.path.exists(module_file):
-    with open(module_file, 'r', encoding='utf-8') as f:
-        exec(f.read(), globals())
+api_pages = {
+    "Payment Token": PaymentToken.render_payment_token,
+    "Payment Action": PaymentAction.render_payment_action
+    # thêm các API khác tại đây nếu đã định nghĩa
+}
+
+if api_selected in api_pages:
+    api_pages[api_selected]()
 else:
-    st.warning(f"🚧 File '{module_file}' chưa được tạo.")
+    st.warning(f"🚧 Trang '{api_selected}' chưa được tạo.")

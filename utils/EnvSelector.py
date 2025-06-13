@@ -3,6 +3,9 @@
 import streamlit as st
 
 def select_environment(key_suffix="", default_urls=None, env_type="paymentToken"):
+    import uuid
+    if not key_suffix:
+        key_suffix = str(uuid.uuid4())  # auto-generate unique key if not provided
     if default_urls is None:
         if env_type == "PaymentAction":
             default_urls = {
@@ -18,12 +21,12 @@ def select_environment(key_suffix="", default_urls=None, env_type="paymentToken"
             }
 
     env = st.radio(
-        "🌍 Chọn môi trường",
+        "🌍 Choose Environment",
         list(default_urls.keys()),
         index=0,
         horizontal=True,
-        key=f"env_token_{key_suffix}"
+        key=f"env_token_{env_type}_{key_suffix}"
     )
 
-    api_url = st.text_input("🔗 API Endpoint", value=default_urls[env], key=f"api_url_{key_suffix}")
+    api_url = st.text_input("🔗 API Endpoint", value=default_urls[env], key=f"api_url_{env_type}_{key_suffix}")
     return env, api_url
