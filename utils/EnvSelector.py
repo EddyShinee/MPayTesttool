@@ -1,0 +1,29 @@
+# env_selector.py
+
+import streamlit as st
+
+def select_environment(key_suffix="", default_urls=None, env_type="paymentToken"):
+    if default_urls is None:
+        if env_type == "PaymentAction":
+            default_urls = {
+                "UAT / Sandbox": "https://demo2.2c2p.com/2C2PFrontend/PaymentAction/2.0/action",
+                "Production": "https://t.2c2p.com/PaymentAction/2.0/action",
+                "MPay - Production": "https://pgwcore.m-pay.vn/PaymentActionV2/2.0/action"
+            }
+        else:
+            default_urls = {
+                "UAT / Sandbox": "https://sandbox-pgw.2c2p.com/payment/4.3/paymentToken",
+                "Production": "https://pgw.2c2p.com/payment/4.3/paymentToken",
+                "MPay - Production": "https://pgw.m-pay.vn/payment/4.1/paymentToken"
+            }
+
+    env = st.radio(
+        "🌍 Chọn môi trường",
+        list(default_urls.keys()),
+        index=0,
+        horizontal=True,
+        key=f"env_token_{key_suffix}"
+    )
+
+    api_url = st.text_input("🔗 API Endpoint", value=default_urls[env], key=f"api_url_{key_suffix}")
+    return env, api_url
