@@ -138,7 +138,7 @@ def render_payment_token():
                     st.toast("Request failed!", icon="⚠️")
                 end_time = datetime.datetime.now()
                 elapsed_time = (end_time - start_time).total_seconds()
-                st.success(f"⏱️Request successful in {elapsed_time:.2f} seconds")
+                st.success(f"⏱️Request successful in {elapsed_time:.2f} giây")
 
     # --- Right column ---
     with col2:
@@ -176,8 +176,12 @@ def render_payment_token():
                     with row1_col2:
                         if st.button("📋 Copy payment token", key=f"{KEY_PREFIX}_copy_token_button"):
                             payment_token = decode_jwt_payload(decoded_response['payload']).get('paymentToken', 'paymentToken not found')
-                            pyperclip.copy(payment_token)
-                            st.toast("✅ Token copied to clipboard!", icon="📋")
+                            try:
+                                pyperclip.copy(payment_token)
+                                st.toast("✅ Token copied to clipboard!", icon="📋")
+                            except pyperclip.PyperclipException:
+                                st.warning("⚠️ Unable to copy token to clipboard. Please copy it manually.")
+                                st.code(payment_token)
             except:
                 st.info("Unable to decode JWT response or 'payload' not found in response.")
 
