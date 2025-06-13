@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <script src="https://demo2.2c2p.com/SecurePayment/api/pgw-securepay-sdk-2.0.0.min.js"></script>
+  </head>
+  <body>
+    <form id="2c2p-payment-form" action="https://webhook.site/08fd12ec-4a71-4499-968c-0dbe729b8686" method="POST">
+      <input hidden="hidden" type="text" data-encrypt="cardnumber" maxlength="16" placeholder="Credit Card Number" value="4111111111111111"><br/><br/>
+      <input hidden="hidden" type="text" data-encrypt="month" maxlength="2" placeholder="MM" value="12"><br/><br/>
+      <input hidden="hidden" type="text" data-encrypt="year" maxlength="4" placeholder="YYYY" value="2029"><br/><br/>
+      <input hidden="hidden" type="password" data-encrypt="cvv" maxlength="4" autocomplete="off" placeholder="CVV2/CVC2" value="123"><br/><br/>
+      <input type="submit" value="Generate Encrypt Card Information">
+    </form>
+    <script type="text/javascript">
+      My2c2p.onSubmitForm("2c2p-payment-form", function(errCode, errDesc){
+        if(errCode != 0){
+          alert(errDesc + " (" + errCode + ")");
+        }
+      });
+    </script>
+  </body>
+</html>

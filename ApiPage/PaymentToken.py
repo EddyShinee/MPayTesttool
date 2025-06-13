@@ -5,6 +5,7 @@ import datetime
 import jwt  # PyJWT
 import base64
 import uuid
+import pyperclip  # Ensure this is imported at the top
 from utils.EnvSelector import select_environment
 
 # Add KEY_PREFIX after imports
@@ -45,10 +46,16 @@ def render_payment_token():
 
         optional_fields = {}
         with st.expander("➕ Advanced Options"):
-            if st.checkbox("agentChannel", key=f"{KEY_PREFIX}_checkbox_agentChannel"):
-                optional_fields['agentChannel'] = st.text_input("agentChannel", key=f"{KEY_PREFIX}_agent_channel_token")
+            if st.checkbox("frontendReturnUrl", key=f"{KEY_PREFIX}_checkbox_frontendReturnUrl"):
+                optional_fields['frontendReturnUrl'] = st.text_input("frontendReturnUrl", "https://webhook.site/08fd12ec-4a71-4499-968c-0dbe729b8686", key=f"{KEY_PREFIX}_frontend_return_url_token")
+            if st.checkbox("backendReturnUrl", key=f"{KEY_PREFIX}_checkbox_backendReturnUrl"):
+                optional_fields['backendReturnUrl'] = st.text_input("backendReturnUrl", "https://webhook.site/08fd12ec-4a71-4499-968c-0dbe729b8686", key=f"{KEY_PREFIX}_backend_return_url_token")
             if st.checkbox("locale", key=f"{KEY_PREFIX}_checkbox_locale"):
                 optional_fields['locale'] = st.text_input("locale", "vi", key=f"{KEY_PREFIX}_locale_token")
+            if st.checkbox("paymentExpiry", key=f"{KEY_PREFIX}_checkbox_paymentExpiry"):
+                optional_fields['paymentExpiry'] = st.text_input("paymentExpiry (yyyy-MM-dd HH:mm:ss)", key=f"{KEY_PREFIX}_payment_expiry_token")
+            if st.checkbox("agentChannel", key=f"{KEY_PREFIX}_checkbox_agentChannel"):
+                optional_fields['agentChannel'] = st.text_input("agentChannel", key=f"{KEY_PREFIX}_agent_channel_token")
             if st.checkbox("request3DS", key=f"{KEY_PREFIX}_checkbox_request3DS"):
                 optional_fields['request3DS'] = st.selectbox("request3DS", ["Y", "N"], key=f"{KEY_PREFIX}_request3ds_token")
             if st.checkbox("tokenize", key=f"{KEY_PREFIX}_checkbox_tokenize"):
@@ -87,8 +94,6 @@ def render_payment_token():
                 optional_fields['chargeNextDate'] = st.date_input("chargeNextDate", key=f"{KEY_PREFIX}_charge_next_date_token")
             if st.checkbox("chargeOnDate", key=f"{KEY_PREFIX}_checkbox_chargeOnDate"):
                 optional_fields['chargeOnDate'] = st.date_input("chargeOnDate", key=f"{KEY_PREFIX}_charge_on_date_token")
-            if st.checkbox("paymentExpiry", key=f"{KEY_PREFIX}_checkbox_paymentExpiry"):
-                optional_fields['paymentExpiry'] = st.text_input("paymentExpiry (yyyy-MM-dd HH:mm:ss)", key=f"{KEY_PREFIX}_payment_expiry_token")
             if st.checkbox("promotionCode", key=f"{KEY_PREFIX}_checkbox_promotionCode"):
                 optional_fields['promotionCode'] = st.text_input("promotionCode", key=f"{KEY_PREFIX}_promotion_code_token")
             if st.checkbox("paymentRouteID", key=f"{KEY_PREFIX}_checkbox_paymentRouteID"):
@@ -133,7 +138,7 @@ def render_payment_token():
                     st.toast("Request failed!", icon="⚠️")
                 end_time = datetime.datetime.now()
                 elapsed_time = (end_time - start_time).total_seconds()
-                st.success(f"⏱️ Request took {elapsed_time:.2f} seconds")
+                st.success(f"⏱️Request successful in {elapsed_time:.2f} seconds")
 
     # --- Right column ---
     with col2:
@@ -171,8 +176,8 @@ def render_payment_token():
                     with row1_col2:
                         if st.button("📋 Copy payment token", key=f"{KEY_PREFIX}_copy_token_button"):
                             payment_token = decode_jwt_payload(decoded_response['payload']).get('paymentToken', 'paymentToken not found')
+                            pyperclip.copy(payment_token)
                             st.toast("✅ Token copied to clipboard!", icon="📋")
-                            st.code(payment_token)
             except:
                 st.info("Unable to decode JWT response or 'payload' not found in response.")
 

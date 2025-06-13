@@ -13,6 +13,18 @@ def select_environment(key_suffix="", default_urls=None, env_type="paymentToken"
                 "Production": "https://t.2c2p.com/PaymentAction/2.0/action",
                 "MPay - Production": "https://pgwcore.m-pay.vn/PaymentActionV2/2.0/action"
             }
+        elif env_type == "DoPayment":
+            default_urls = {
+                "UAT / Sandbox": "https://sandbox-pgw.2c2p.com/payment/4.3/payment",
+                "Production": "https://pgw.2c2p.com/payment/4.3/payment",
+                "MPay - Production": "https://pgw.m-pay.vn/payment/4.1/payment"
+            }
+        elif env_type == "PaymentOption":
+            default_urls = {
+                "UAT / Sandbox": "https://sandbox-pgw.2c2p.com/payment/4.3/paymentOption",
+                "Production": "https://pgw.2c2p.com/payment/4.3/paymentOption",
+                "MPay - Production": "https://pgw.m-pay.vn/payment/4.1/paymentOption"
+            }
         else:
             default_urls = {
                 "UAT / Sandbox": "https://sandbox-pgw.2c2p.com/payment/4.3/paymentToken",

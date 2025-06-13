@@ -8,7 +8,7 @@ import datetime
 import jwt  # PyJWT
 import base64
 import importlib
-from ApiPage import PaymentToken, PaymentAction
+from ApiPage import PaymentToken, PaymentAction, DoPayment, PaymentOptions
 import os
 
 # st.title("🔗 2C2P API Simulator")
@@ -20,7 +20,9 @@ from ApiPage import PaymentToken  # import các trang khác nếu có thêm
 
 api_pages = {
     "Payment Token": PaymentToken.render_payment_token,
-    "Payment Action": PaymentAction.render_payment_action
+    "Payment Action": PaymentAction.render_payment_action,
+    "Do Payment": DoPayment.render_do_payment,
+    "Payment Options": PaymentOptions.render_payment_options
     # thêm các API khác tại đây nếu đã định nghĩa
 }
 
