@@ -25,6 +25,30 @@ def select_environment(key_suffix="", default_urls=None, env_type="paymentToken"
                 "Production": "https://pgw.2c2p.com/payment/4.3/paymentOption",
                 "MPay - Production": "https://pgw.m-pay.vn/payment/4.1/paymentOption"
             }
+        elif env_type == "PaymentOptionDetails":
+            default_urls = {
+                "UAT / Sandbox": "https://sandbox-pgw.2c2p.com/payment/4.3/paymentOptionDetails",
+                "Production": "https://pgw.2c2p.com/payment/4.3/paymentOptionDetails",
+                "MPay - Production": "https://pgw.m-pay.vn/payment/4.1/paymentOptionDetails"
+            }
+        elif env_type == "TransactionStatusInquiry":
+            default_urls = {
+                "UAT / Sandbox": "https://sandbox-pgw.2c2p.com/payment/4.3/transactionStatus",
+                "Production": "https://pgw.2c2p.com/payment/4.3/transactionStatus",
+                "MPay - Production": "https://pgw.m-pay.vn/payment/4.3/transactionStatus"
+            }
+        elif env_type == "PaymentInquiry":
+            default_urls = {
+                "UAT / Sandbox": "https://sandbox-pgw.2c2p.com/payment/4.3/paymentInquiry",
+                "Production": "https://pgw.2c2p.com/payment/4.3/paymentInquiry",
+                "MPay - Production": "https://pgw.m-pay.vn/payment/4.3/paymentInquiry"
+            }
+        elif env_type == "PaymentPOS":
+            default_urls = {
+                "UAT / Sandbox": "https://sandbox-pgw.2c2p.com/pos/v4.3/order/create",
+                "Production": "https://pgw.2c2p.com/payment/4.3/paymentInquiry",
+                "MPay - Production": "https://pgw.m-pay.vn/payment/4.3/paymentInquiry"
+            }
         else:
             default_urls = {
                 "UAT / Sandbox": "https://sandbox-pgw.2c2p.com/payment/4.3/paymentToken",

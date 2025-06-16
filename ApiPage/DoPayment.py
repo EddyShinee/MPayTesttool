@@ -26,7 +26,7 @@ def render_do_payment():
 
         # Locale and Return URL
         locale = st.text_input("🌐 Locale", "en")
-        return_url = st.text_input("🔁 Response Return URL", "https://pgw.2c2p.com/ui/4.3/info")
+        return_url = st.text_input("🔁 Response Return URL", "https://webhook.site/08fd12ec-4a71-4499-968c-0dbe729b8686")
 
         st.markdown("## 💰 Channel Code")
         default_code_json = {
