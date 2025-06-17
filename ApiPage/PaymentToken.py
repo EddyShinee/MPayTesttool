@@ -61,11 +61,12 @@ def render_payment_token():
             if st.checkbox("tokenize", key=f"{KEY_PREFIX}_checkbox_tokenize"):
                 optional_fields['tokenize'] = st.selectbox("tokenize", [True, False], key=f"{KEY_PREFIX}_tokenize_token")
             if st.checkbox("customerToken", key=f"{KEY_PREFIX}_checkbox_customerToken"):
-                optional_fields['customerToken'] = st.text_input("customerToken", key=f"{KEY_PREFIX}_customer_token_token")
+                raw_token_input = st.text_area("customerToken (comma-separated)", key=f"{KEY_PREFIX}_customer_token_token")
+                optional_fields['customerToken'] = [token.strip() for token in raw_token_input.split(',') if token.strip()]
             if st.checkbox("customerTokenOnly", key=f"{KEY_PREFIX}_checkbox_customerTokenOnly"):
-                optional_fields['customerTokenOnly'] = st.selectbox("customerTokenOnly", ["Y", "N"], key=f"{KEY_PREFIX}_customer_token_only_token")
+                optional_fields['customerTokenOnly'] = st.checkbox("Is customerTokenOnly True?", key=f"{KEY_PREFIX}_customer_token_only_token")
             if st.checkbox("tokenizeOnly", key=f"{KEY_PREFIX}_checkbox_tokenizeOnly"):
-                optional_fields['tokenizeOnly'] = st.selectbox("tokenizeOnly", ["Y", "N"], key=f"{KEY_PREFIX}_tokenize_only_token")
+                optional_fields['tokenizeOnly'] = st.checkbox("Is tokenizeOnly True?", key=f"{KEY_PREFIX}_tokenize_only_token")
             if st.checkbox("storeCredentials", key=f"{KEY_PREFIX}_checkbox_storeCredentials"):
                 optional_fields['storeCredentials'] = st.selectbox("storeCredentials", ["Y", "N"], key=f"{KEY_PREFIX}_store_credentials_token")
             if st.checkbox("interestType", key=f"{KEY_PREFIX}_checkbox_interestType"):
