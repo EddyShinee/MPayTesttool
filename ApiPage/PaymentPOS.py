@@ -59,25 +59,27 @@ def render_payment_pos():
         st.session_state["customer_email"] = customer_email
 
         if st.button("🔐 Send request Payment Token", key=f"{KEY_PREFIX}_send_request_button"):
+            st.session_state["invoice_no"] = generate_invoice_no()
+            st.session_state["idempotency_id"] = generate_idempotency_id()
+            st.session_state["trigger_send_request"] = True
+            st.rerun()
+
+        if st.session_state.get("trigger_send_request", False):
+            st.session_state["trigger_send_request"] = False
             start_time = time.perf_counter()
             start_timestamp = datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]
             realtime_placeholder = st.empty()
             st.session_state["response_payload"] = None
 
-            # Hiển thị ngay sau khi bấm nút
             realtime_placeholder.info(f"🕒 Elapsed Time: ...\n🔹 Started at: `{start_timestamp}`")
 
-            # Regenerate invoice_no and idempotency_id each time the button is clicked
-            invoice_no = generate_invoice_no()
-            st.session_state["invoice_no"] = invoice_no
-            idempotency_id = generate_idempotency_id()
-            st.session_state["idempotency_id"] = idempotency_id
+            invoice_no = st.session_state["invoice_no"]
+            idempotency_id = st.session_state["idempotency_id"]
 
-            # ----- Build payload & sign JWT -----
             payload_data = {
                 "merchantId": merchant_id,
                 "invoiceNo": invoice_no,
-                "description": description,
+                "description": f"Eddy - Payment {invoice_no}",
                 "amount": amount,
                 "currencyCode": currency_code,
                 "idempotencyID": idempotency_id,
@@ -104,7 +106,6 @@ def render_payment_pos():
             }
             st.session_state["api_payload"] = api_payload
 
-            # ----- Send API request -----
             try:
                 res = requests.post(api_url, json=api_payload, headers={"Content-Type": "application/json"})
                 st.session_state["response_payload"] = res.text
@@ -114,7 +115,6 @@ def render_payment_pos():
                 st.toast("Request failed!", icon="⚠️")
                 st.error(str(e))
 
-            # ----- Show elapsed time (update lại placeholder) -----
             end_time = time.perf_counter()
             elapsed_time = end_time - start_time
             realtime_placeholder.info(f"🕒 Elapsed Time: {elapsed_time:.2f} s\n🔹 Started at: `{start_timestamp}`")

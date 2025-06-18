@@ -111,8 +111,18 @@ def render_payment_token():
         secret_key = st.text_input("🔑 Merchant SHA Key", type="password", value="0A85F7ED911FD69D3316ECDF20FCA4E138E590E7EF5D93009FEF1BEC5B2FF13F", key=f"{KEY_PREFIX}_secret_key_token")
 
         if st.button("🔐 Send request Payment Token", key=f"{KEY_PREFIX}_send_request_button"):
+            st.session_state["invoice_no"] = generate_invoice_no()
+            st.session_state["idempotency_id"] = generate_idempotency_id()
+            st.session_state["trigger_send_request"] = True
+            st.rerun()
+
+        if st.session_state.get("trigger_send_request", False):
+            st.session_state["trigger_send_request"] = False  # Reset trigger
             with st.spinner("🔄 Sending request..."):
                 start_time = datetime.datetime.now()
+                invoice_no = st.session_state["invoice_no"]
+                idempotency_id = st.session_state["idempotency_id"]
+                description = f"Eddy - Payment {invoice_no}"
                 payload_data = {
                     "merchantID": merchant_id,
                     "invoiceNo": invoice_no,
@@ -122,14 +132,9 @@ def render_payment_token():
                     "paymentChannel": payment_channel
                 }
                 payload_data.update(optional_fields)
-
                 st.session_state["payload_data"] = payload_data
-
                 jwt_token = jwt.encode(payload_data, secret_key, algorithm="HS256")
-
-                # Save to display in right column
                 st.session_state["request_payload"] = jwt_token
-
                 try:
                     res = requests.post(api_url, json={"payload": jwt_token}, headers={"Content-Type": "application/json"})
                     st.session_state["response_payload"] = res.text
