@@ -1,0 +1,45 @@
+@startuml
+' Gợi ý: sơ đồ thanh toán POS qua EDC → 2C2P POS → Acquirer
+
+autonumber
+
+actor Customer
+participant POS_CLIENT as "POS"
+participant EDC
+participant POS as "2C2P POS System"
+participant Acquirer
+skinparam ParticipantPadding 80
+
+Customer -> POS_CLIENT: Select payment method \n& confirm checkout
+
+POS_CLIENT -> POS: Create Order
+POS -> Acquirer: Create Order
+
+Acquirer --> EDC: Ready for Payment
+
+Customer -> EDC: Make payment
+
+alt Payment Success
+  EDC -> Acquirer: Send Payment Info
+  Acquirer --> EDC: Payment Approved
+
+  POS -> POS: Inquiry Order Status
+  POS -> Acquirer: Check Transaction
+  Acquirer --> POS: Order Status (Success)
+
+  Acquirer -> POS: Callback Payment Result
+  POS --> POS_CLIENT: Response to POS
+else Payment Failed
+  EDC -> Acquirer: Send Payment Info
+  Acquirer --> EDC: Payment Failed
+
+  POS -> POS: Inquiry Order Status
+  POS -> Acquirer: Check Transaction
+  Acquirer --> POS: Order Status (Failed)
+
+
+  Acquirer -> POS: Callback Payment Result (Failed)
+  POS --> POS_CLIENT: Response to POS
+end
+
+@enduml

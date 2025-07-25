@@ -8,7 +8,7 @@ import datetime
 import jwt  # PyJWT
 import base64
 import importlib
-from ApiPage import PaymentToken, PaymentAction, DoPayment, PaymentOptions, PaymentOptionDetails, TransactionStatusInquiry, PaymentInquiry, PaymentPOS
+from ApiPage import PaymentToken, PaymentAction, DoPayment, PaymentOptions, PaymentOptionDetails, TransactionStatusInquiry, PaymentInquiry, PaymentPOS, WebhookReceiver
 import os
 
 # st.title("🔗 2C2P API Simulator")
@@ -26,7 +26,8 @@ api_pages = {
     "Payment Option Details": PaymentOptionDetails.render_payment_option_details,
     "Transaction Status Inquiry": TransactionStatusInquiry.render_transaction_status_inquiry,
     "Payment Inquiry": PaymentInquiry.render_payment_inquiry,
-    "Payment POS": PaymentPOS.render_payment_pos
+    "Payment POS": PaymentPOS.render_payment_pos,
+    "Webhook Receiver": WebhookReceiver.render_webhook_receiver
     # thêm các API khác tại đây nếu đã định nghĩa
 }
 
