@@ -75,13 +75,6 @@ def render_do_payment():
 
         st.code(json.dumps(payment_data, indent=2), language="json")
 
-        # --- Encrypted Card Info Response Input ---
-        encrypted_response = st.text_area(
-            "🔐 Encrypted Card Info Response",
-            "",
-            help="Paste full query string here (e.g., encryptedCardInfo=...&...)",
-            height=100
-        )
 
         from urllib.parse import parse_qs
         if encrypted_response:
