@@ -34,7 +34,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
         elif path == '/webhooks/clear':
             self.clear_webhooks()
         elif path == '/webhook/callback-frontend':
-            self.handle_callback_frontend()
+            self.handle_callback_frontend('GET')
         elif path == '/webhook/encrypt-card':
             self.handle_encrypt_card('GET')
         else:
@@ -45,6 +45,8 @@ class WebhookHandler(BaseHTTPRequestHandler):
         parsed_path = urlparse(self.path)
         if parsed_path.path == '/webhook/encrypt-card':
             self.handle_encrypt_card('POST')
+        elif parsed_path.path == '/webhook/callback-frontend':
+            self.handle_callback_frontend('POST')
         else:
             self.handle_webhook('POST')
 
@@ -59,6 +61,16 @@ class WebhookHandler(BaseHTTPRequestHandler):
             self.clear_webhooks()
         else:
             self.handle_webhook('DELETE')
+
+    def do_OPTIONS(self):
+        """Handle OPTIONS requests for CORS"""
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization')
+        self.send_header('Access-Control-Max-Age', '3600')
+        self.end_headers()
+        self.wfile.write(b'')
 
     def handle_webhook(self, method):
         """Process webhook requests"""
@@ -123,14 +135,14 @@ class WebhookHandler(BaseHTTPRequestHandler):
             # Parse query parameters
             parsed_path = urlparse(self.path)
             query_params = parse_qs(parsed_path.query)
-
+            
             # Get paymentResponse parameter
             payment_response = query_params.get('paymentResponse', [None])[0]
-
+            
             if not payment_response:
                 self.send_error_html("Missing paymentResponse parameter")
                 return
-
+            
             # Decode base64
             try:
                 decoded_bytes = base64.b64decode(payment_response)
@@ -138,7 +150,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 self.send_error_html(f"Error decoding paymentResponse: {str(e)}")
                 return
-
+            
             # Store in webhook storage
             webhook_entry = {
                 "id": len(webhook_storage) + 1,
@@ -153,10 +165,10 @@ class WebhookHandler(BaseHTTPRequestHandler):
             webhook_storage.insert(0, webhook_entry)
             if len(webhook_storage) > MAX_STORAGE:
                 webhook_storage.pop()
-
+            
             # Send success HTML
             self.send_callback_success_html(decoded_json)
-
+            
         except Exception as e:
             print(f"❌ Error processing callback-frontend: {str(e)}")
             self.send_error_html(f"Internal server error: {str(e)}")
@@ -174,7 +186,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                         body_data = json.loads(body_raw.decode('utf-8'))
                     except json.JSONDecodeError:
                         body_data = body_raw.decode('utf-8')
-
+            
             # Store in webhook storage
             webhook_entry = {
                 "id": len(webhook_storage) + 1,
@@ -189,16 +201,16 @@ class WebhookHandler(BaseHTTPRequestHandler):
             webhook_storage.insert(0, webhook_entry)
             if len(webhook_storage) > MAX_STORAGE:
                 webhook_storage.pop()
-
+            
             # Print to console
             print(f"\n🔐 Encrypt-card webhook received at {webhook_entry['timestamp']}")
             print(f"Method: {method}")
             print(f"Body: {body_data}")
             print("-" * 60)
-
+            
             # Send success HTML
             self.send_encrypt_success_html(body_data)
-
+            
         except Exception as e:
             print(f"❌ Error processing encrypt-card: {str(e)}")
             self.send_error_html(f"Internal server error: {str(e)}")
@@ -296,23 +308,40 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 </div>
                 <h1 class="title">Payment Callback Received!</h1>
                 <p class="message">Your payment response has been successfully processed and decoded.</p>
-
+                
                 <div class="data-container">
                     <div class="data-title">📋 Decoded Payment Information:</div>
                     <div class="data-content">{json.dumps(decoded_data, indent=2, ensure_ascii=False)}</div>
                 </div>
-
+                
                 <a href="/" class="back-link">
                     <i class="fas fa-arrow-left"></i>
                     Back to Webhook Monitor
                 </a>
             </div>
+            
+            <script>
+                // If this page is loaded in an iframe, notify parent
+                if (window.parent !== window) {
+                    try {
+                        window.parent.postMessage({{
+                            type: 'CARD_ENCRYPTION_SUCCESS',
+                            status: 'success',
+                            message: 'Card encryption completed successfully'
+                        }}, '*');
+                    }} catch (e) {{
+                        console.log('Could not communicate with parent window:', e);
+                    }}
+                }}
+            </script>
         </body>
         </html>
         """
-
+        
         self.send_response(200)
         self.send_header('Content-type', 'text/html; charset=utf-8')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('X-Frame-Options', 'ALLOWALL')
         self.end_headers()
         self.wfile.write(html_content.encode('utf-8'))
 
@@ -421,25 +450,43 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 <h1 class="title">Card Encryption Complete!</h1>
                 <div class="ok-badge">✅ OK</div>
                 <p class="message">Your card encryption request has been processed successfully.</p>
-
+                
                 {f'''
                 <div class="data-container">
                     <div class="data-title">📋 Request Data:</div>
                     <div class="data-content">{json.dumps(request_data, indent=2, ensure_ascii=False) if request_data else "No request data"}</div>
                 </div>
                 ''' if request_data else ''}
-
+                
                 <a href="/" class="back-link">
                     <i class="fas fa-arrow-left"></i>
                     Back to Webhook Monitor
                 </a>
             </div>
+            
+            <script>
+                // If this page is loaded in an iframe, notify parent
+                if (window.parent !== window) {
+                    try {
+                        window.parent.postMessage({{
+                            type: 'PAYMENT_CALLBACK_SUCCESS',
+                            status: 'success',
+                            message: 'Payment callback processed successfully',
+                            data: {json.dumps(decoded_data, ensure_ascii=False)}
+                        }}, '*');
+                    }} catch (e) {{
+                        console.log('Could not communicate with parent window:', e);
+                    }}
+                }}
+            </script>
         </body>
         </html>
         """
-
+        
         self.send_response(200)
         self.send_header('Content-type', 'text/html; charset=utf-8')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('X-Frame-Options', 'ALLOWALL')
         self.end_headers()
         self.wfile.write(html_content.encode('utf-8'))
 
@@ -517,18 +564,35 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 </div>
                 <h1 class="title">Request Failed</h1>
                 <div class="message">{html_module.escape(error_message)}</div>
-
+                
                 <a href="/" class="back-link">
                     <i class="fas fa-arrow-left"></i>
                     Back to Webhook Monitor
                 </a>
             </div>
+            
+            <script>
+                // If this page is loaded in an iframe, notify parent
+                if (window.parent !== window) {
+                    try {
+                        window.parent.postMessage({{
+                            type: 'WEBHOOK_ERROR',
+                            status: 'error',
+                            message: '{html_module.escape(error_message)}'
+                        }}, '*');
+                    }} catch (e) {{
+                        console.log('Could not communicate with parent window:', e);
+                    }}
+                }}
+            </script>
         </body>
         </html>
         """
-
+        
         self.send_response(400)
         self.send_header('Content-type', 'text/html; charset=utf-8')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('X-Frame-Options', 'ALLOWALL')
         self.end_headers()
         self.wfile.write(html_content.encode('utf-8'))
 
@@ -799,22 +863,22 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     .container {{
                         padding: 15px;
                     }}
-
+                    
                     .header h1 {{
                         font-size: 1.6em;
                     }}
-
+                    
                     .stats {{
                         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
                         gap: 15px;
                     }}
-
+                    
                     .webhook-header {{
                         flex-direction: column;
                         align-items: flex-start;
                         gap: 10px;
                     }}
-
+                    
                     .action-buttons {{
                         flex-direction: column;
                     }}
@@ -861,7 +925,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                         <div class="endpoint-item">
                             <i class="fas fa-arrow-left"></i>
                             <span class="endpoint-url">http://localhost:8000/webhook/callback-frontend</span>
-                            <span>Frontend callback (GET with paymentResponse param)</span>
+                            <span>Frontend callback (GET/POST with paymentResponse)</span>
                         </div>
                         <div class="endpoint-item">
                             <i class="fas fa-shield-alt"></i>
@@ -888,7 +952,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                             </a>
                         </div>
                     </div>
-
+                    
                     {self._get_beautiful_webhooks_html()}
                 </div>
             </div>
@@ -898,7 +962,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 setTimeout(() => {{
                     location.reload();
                 }}, 30000);
-
+                
                 // Add click to copy functionality
                 document.querySelectorAll('.webhook-body').forEach(el => {{
                     el.addEventListener('click', () => {{
@@ -951,7 +1015,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
             timestamp = webhook.get('timestamp', '')
             body = webhook.get('body', '')
             client_ip = webhook.get('client_address', 'unknown')
-
+            
             # Format timestamp
             try:
                 dt = datetime.datetime.fromisoformat(timestamp)
@@ -1042,7 +1106,7 @@ def run_server(port=8000):
     print(f"🏠 Home page: http://localhost:{port}")
     print(f"🔗 Main webhook: http://localhost:{port}/webhook")
     print(f"💳 Payment webhook: http://localhost:{port}/webhook/payment")
-    print(f"🔄 Frontend callback: http://localhost:{port}/webhook/callback-frontend")
+    print(f"🔄 Frontend callback: http://localhost:{port}/webhook/callback-frontend (GET/POST)")
     print(f"🔐 Encrypt card: http://localhost:{port}/webhook/encrypt-card")
     print(f"📊 All webhooks: http://localhost:{port}/webhooks")
     print("-" * 60)
