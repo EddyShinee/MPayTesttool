@@ -107,27 +107,254 @@ def render_do_payment():
 
         if all([card_number, expiry_month, expiry_year, cvv]):
             st.markdown("### 🧾 2C2P Card Encryption Form")
+
+            # Enhanced form with fetch API instead of iframe
             button_html = f'''
-            <form id="2c2p-payment-form" action="https://eddy.io.vn/callback/webhook/encrypt-card" method="POST">
-                <input type="hidden" data-encrypt="cardnumber" value="{card_number.replace(" ", "")}">
-                <input type="hidden" data-encrypt="month" value="{expiry_month}">
-                <input type="hidden" data-encrypt="year" value="{expiry_year}">
-                <input type="hidden" data-encrypt="cvv" value="{cvv}">
-                <input type="submit" value="🔒 Submit to Encrypt Card" style="background-color:#0099ff; color:white; font-size:16px; padding:10px 20px; border:none; border-radius:5px; cursor:pointer;">
-            </form>
+            <div id="encryption-container">
+                <form id="2c2p-payment-form" style="display: none;">
+                    <input type="hidden" data-encrypt="cardnumber" value="{card_number.replace(" ", "")}">
+                    <input type="hidden" data-encrypt="month" value="{expiry_month}">
+                    <input type="hidden" data-encrypt="year" value="{expiry_year}">
+                    <input type="hidden" data-encrypt="cvv" value="{cvv}">
+                </form>
+
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button id="encrypt-button" onclick="encryptCard()" 
+                            style="background: linear-gradient(135deg, #667eea, #764ba2); color:white; font-size:14px; padding:10px 20px; border:none; border-radius:8px; cursor:pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3); transition: all 0.3s ease;">
+                        🔒 Encrypt Card Data
+                    </button>
+
+                    <button id="manual-copy-button" onclick="copyToClipboard()" style="display: none;
+                            background: linear-gradient(135deg, #48bb78, #38a169); color:white; font-size:14px; padding:10px 20px; border:none; border-radius:8px; cursor:pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(72, 187, 120, 0.3); transition: all 0.3s ease;">
+                        📋 Copy Encrypted Token
+                    </button>
+                </div>
+
+                <div id="encryption-status" style="margin-top: 15px; padding: 10px; border-radius: 6px; display: none;"></div>
+                <div id="encryption-result" style="margin-top: 15px; padding: 15px; background: #f8fafc; border-radius: 6px; display: none; font-family: Monaco, monospace; font-size: 12px; word-break: break-all;"></div>
+            </div>
+
             <script src="https://demo2.2c2p.com/2C2PFrontEnd/SecurePayment/api/my2c2p.1.7.6.min.js"></script>
             <script>
-                My2c2p.onSubmitForm("2c2p-payment-form", function(errCode, errDesc){{
-                    if(errCode!=0){{
-                        alert(errDesc+" ("+errCode+")");
+                let encryptedToken = null;
+
+                // Style the buttons on hover
+                ['encrypt-button', 'manual-copy-button'].forEach(id => {{
+                    const btn = document.getElementById(id);
+                    if (btn) {{
+                        btn.addEventListener('mouseenter', function() {{
+                            this.style.transform = 'translateY(-2px)';
+                            this.style.boxShadow = this.style.boxShadow.replace('0 4px 12px', '0 6px 20px');
+                        }});
+
+                        btn.addEventListener('mouseleave', function() {{
+                            this.style.transform = 'translateY(0)';
+                            this.style.boxShadow = this.style.boxShadow.replace('0 6px 20px', '0 4px 12px');
+                        }});
                     }}
                 }});
+
+                function showStatus(message, type) {{
+                    const statusEl = document.getElementById('encryption-status');
+                    statusEl.style.display = 'block';
+                    statusEl.innerHTML = message;
+
+                    if (type === 'loading') {{
+                        statusEl.style.background = '#e6f3ff';
+                        statusEl.style.color = '#0066cc';
+                        statusEl.style.border = '1px solid #b3d9ff';
+                    }} else if (type === 'success') {{
+                        statusEl.style.background = '#e8f5e8';
+                        statusEl.style.color = '#2d7a2d';
+                        statusEl.style.border = '1px solid #a3d9a3';
+                    }} else if (type === 'error') {{
+                        statusEl.style.background = '#ffe6e6';
+                        statusEl.style.color = '#cc0000';
+                        statusEl.style.border = '1px solid #ffb3b3';
+                    }}
+                }}
+
+                function showResult(data) {{
+                    const resultEl = document.getElementById('encryption-result');
+                    resultEl.style.display = 'block';
+                    resultEl.innerHTML = '<strong>🔐 Encrypted Data:</strong><br>' + JSON.stringify(data, null, 2);
+
+                    // Show copy button
+                    const copyBtn = document.getElementById('manual-copy-button');
+                    if (copyBtn) copyBtn.style.display = 'inline-block';
+                }}
+
+                function copyToClipboard() {{
+                    if (encryptedToken) {{
+                        navigator.clipboard.writeText(encryptedToken).then(() => {{
+                            showStatus('✅ Encrypted token copied to clipboard!', 'success');
+
+                            // Try to trigger Streamlit component update
+                            setTimeout(() => {{
+                                // Create a temporary input and trigger events to update Streamlit
+                                const tempInput = document.createElement('input');
+                                tempInput.value = encryptedToken;
+                                tempInput.style.position = 'absolute';
+                                tempInput.style.left = '-9999px';
+                                document.body.appendChild(tempInput);
+                                tempInput.select();
+                                document.execCommand('copy');
+                                document.body.removeChild(tempInput);
+
+                                showStatus('✅ Token copied! Paste it into the securePayToken field above.', 'success');
+                            }}, 100);
+                        }}).catch(err => {{
+                            showStatus('❌ Failed to copy to clipboard', 'error');
+                            console.error('Copy failed:', err);
+                        }});
+                    }}
+                }}
+
+                async function sendToWebhook(formData) {{
+                    try {{
+                        showStatus('📤 Sending encrypted data to webhook...', 'loading');
+
+                        // Try multiple webhook endpoints
+                        const endpoints = [
+                            'https://eddy.io.vn/callback/webhook/encrypt-card',
+                            'http://localhost:8000/webhook/encrypt-card'
+                        ];
+
+                        let lastError = null;
+
+                        for (const endpoint of endpoints) {{
+                            try {{
+                                const response = await fetch(endpoint, {{
+                                    method: 'POST',
+                                    mode: 'cors',
+                                    headers: {{
+                                        'Content-Type': 'application/x-www-form-urlencoded',
+                                        'Accept': 'application/json, text/html, */*'
+                                    }},
+                                    body: new URLSearchParams(formData).toString()
+                                }});
+
+                                if (response.ok) {{
+                                    showStatus('✅ Successfully sent to webhook server!', 'success');
+
+                                    // Try to get the encrypted token from form data and show it
+                                    if (formData.get('encryptedCardInfo')) {{
+                                        showResult({{
+                                            encryptedCardInfo: formData.get('encryptedCardInfo'),
+                                            timestamp: new Date().toISOString(),
+                                            webhook: endpoint
+                                        }});
+
+                                        // Copy encrypted data to clipboard
+                                        navigator.clipboard.writeText(formData.get('encryptedCardInfo'));
+                                        showStatus('✅ Encrypted token copied to clipboard!', 'success');
+                                    }}
+                                    return; // Success, exit function
+                                }} else {{
+                                    throw new Error(`HTTP ${{response.status}}: ${{response.statusText}}`);
+                                }}
+                            }} catch (error) {{
+                                lastError = error;
+                                console.log(`Failed to reach ${{endpoint}}:`, error);
+                                continue; // Try next endpoint
+                            }}
+                        }}
+
+                        // If all endpoints failed, show fallback
+                        throw lastError || new Error('All webhook endpoints failed');
+
+                    }} catch (error) {{
+                        console.error('Webhook error:', error);
+                        showStatus('⚠️ Webhook call failed, but encryption succeeded!', 'error');
+
+                        // Show encrypted data anyway since encryption worked
+                        if (formData.get('encryptedCardInfo')) {{
+                            showResult({{
+                                encryptedCardInfo: formData.get('encryptedCardInfo'),
+                                timestamp: new Date().toISOString(),
+                                note: 'Encryption successful, webhook failed'
+                            }});
+
+                            // Copy to clipboard
+                            navigator.clipboard.writeText(formData.get('encryptedCardInfo'));
+                            showStatus('✅ Encrypted token copied to clipboard! (Webhook failed but data is ready)', 'success');
+                        }}
+                    }}
+                }}
+
+                function encryptCard() {{
+                    const button = document.getElementById('encrypt-button');
+                    button.disabled = true;
+                    button.innerHTML = '🔄 Encrypting...';
+                    button.style.opacity = '0.7';
+
+                    showStatus('🔐 Encrypting card data...', 'loading');
+
+                    // Use My2c2p to encrypt the form
+                    My2c2p.onSubmitForm("2c2p-payment-form", async function(errCode, errDesc) {{
+                        button.disabled = false;
+                        button.innerHTML = '🔒 Encrypt Card Data';
+                        button.style.opacity = '1';
+
+                        if (errCode != 0) {{
+                            showStatus('❌ Encryption failed: ' + errDesc + ' (Code: ' + errCode + ')', 'error');
+                            return;
+                        }}
+
+                        showStatus('✅ Card data encrypted successfully!', 'success');
+
+                        // Get the encrypted form data
+                        const form = document.getElementById('2c2p-payment-form');
+                        const formData = new FormData();
+
+                        // Collect all form inputs including encrypted ones
+                        const inputs = form.querySelectorAll('input');
+                        inputs.forEach(input => {{
+                            if (input.value) {{
+                                const name = input.name || input.getAttribute('data-encrypt') || 'encryptedCardInfo';
+                                formData.append(name, input.value);
+
+                                // Store the encrypted token
+                                if (name === 'encryptedCardInfo' || input.value.length > 50) {{
+                                    encryptedToken = input.value;
+                                }}
+                            }}
+                        }});
+
+                        // Always show the result, regardless of webhook status
+                        if (encryptedToken) {{
+                            showResult({{
+                                encryptedCardInfo: encryptedToken,
+                                timestamp: new Date().toISOString()
+                            }});
+                        }}
+
+                        // Try to send to webhook (optional)
+                        try {{
+                            await sendToWebhook(formData);
+                        }} catch (e) {{
+                            console.log('Webhook failed, but encryption succeeded');
+                        }}
+                    }});
+
+                    // Trigger the form submission for encryption
+                    const form = document.getElementById('2c2p-payment-form');
+                    if (form) {{
+                        form.dispatchEvent(new Event('submit'));
+                    }}
+                }}
             </script>
             '''
+
             import streamlit.components.v1 as components
-            components.html(button_html, height=100)
+            components.html(button_html, height=300)
+
+            # Add instructions
+            st.info(
+                "💡 **Instructions:** Click 'Encrypt Card Data' → Copy the encrypted token → Paste it into the 'securePayToken' field above")
+
         else:
-            st.info("ℹ️ Enter all card details to see form preview.")
+            st.info("ℹ️ Enter all card details to see encryption form.")
 
         # Send Request Button
         st.markdown("---")
