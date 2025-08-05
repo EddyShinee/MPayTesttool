@@ -10,7 +10,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import threading
 import sys
-import html
+import html as html_module
 
 # Global storage for webhooks
 webhook_storage = []
@@ -131,6 +131,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                     min-height: 100vh;
                     color: #2d3748;
+                    font-size: 13px;
                 }}
 
                 .container {{
@@ -150,7 +151,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 }}
 
                 .header h1 {{
-                    font-size: 2.5em;
+                    font-size: 2em;
                     font-weight: 700;
                     background: linear-gradient(135deg, #667eea, #764ba2);
                     -webkit-background-clip: text;
@@ -180,7 +181,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 }}
 
                 .stat-number {{
-                    font-size: 2.5em;
+                    font-size: 2em;
                     font-weight: 700;
                     color: #667eea;
                     margin-bottom: 5px;
@@ -190,7 +191,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     color: #718096;
                     font-weight: 500;
                     text-transform: uppercase;
-                    font-size: 0.9em;
+                    font-size: 0.75em;
                     letter-spacing: 1px;
                 }}
 
@@ -212,7 +213,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 }}
 
                 .section-title {{
-                    font-size: 1.8em;
+                    font-size: 1.4em;
                     font-weight: 600;
                     color: #2d3748;
                 }}
@@ -274,7 +275,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 .method-badge {{
                     padding: 6px 12px;
                     border-radius: 20px;
-                    font-size: 0.8em;
+                    font-size: 0.7em;
                     font-weight: 700;
                     text-transform: uppercase;
                     letter-spacing: 1px;
@@ -306,12 +307,12 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     color: #e2e8f0;
                     padding: 8px 12px;
                     border-radius: 6px;
-                    font-size: 0.9em;
+                    font-size: 0.8em;
                 }}
 
                 .webhook-time {{
                     color: #718096;
-                    font-size: 0.9em;
+                    font-size: 0.8em;
                 }}
 
                 .webhook-body {{
@@ -320,7 +321,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     padding: 15px;
                     border-radius: 10px;
                     font-family: 'Monaco', 'Menlo', monospace;
-                    font-size: 0.85em;
+                    font-size: 0.75em;
                     white-space: pre-wrap;
                     word-break: break-all;
                     max-height: 200px;
@@ -335,7 +336,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 }}
 
                 .no-webhooks i {{
-                    font-size: 4em;
+                    font-size: 3em;
                     margin-bottom: 20px;
                     opacity: 0.5;
                 }}
@@ -376,7 +377,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     }}
 
                     .header h1 {{
-                        font-size: 2em;
+                        font-size: 1.6em;
                     }}
 
                     .stats {{
@@ -509,10 +510,10 @@ class WebhookHandler(BaseHTTPRequestHandler):
             </div>
             """
 
-        html = ""
+        html_content = ""
         for webhook in webhook_storage[:20]:  # Show last 20
             method = webhook.get('method', 'UNKNOWN')
-            path = html.escape(webhook.get('path', ''))
+            path = html_module.escape(webhook.get('path', ''))
             timestamp = webhook.get('timestamp', '')
             body = webhook.get('body', '')
             client_ip = webhook.get('client_address', 'unknown')
@@ -537,7 +538,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
             else:
                 body_display = str(body) if body else "No body data"
 
-            html += f"""
+            html_content += f"""
             <div class="webhook-item">
                 <div class="webhook-header">
                     <div style="display: flex; align-items: center; gap: 15px;">
@@ -553,10 +554,10 @@ class WebhookHandler(BaseHTTPRequestHandler):
                         </div>
                     </div>
                 </div>
-                <div class="webhook-body" title="Click to copy">{html.escape(body_display)}</div>
+                <div class="webhook-body" title="Click to copy">{html_module.escape(body_display)}</div>
             </div>
             """
-        return html
+        return html_content
 
     def send_all_webhooks(self):
         """Send all webhooks as JSON"""
