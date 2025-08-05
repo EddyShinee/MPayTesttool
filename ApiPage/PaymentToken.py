@@ -524,7 +524,7 @@ class PaymentTokenGenerator:
                     web_url = decoded_payload.get('webPaymentUrl')
                     if web_url:
                         st.markdown(f"[🌐 Open Payment URL]({web_url})")
-                        st.markdown(f"[🌐 Open Webhook URL]({https://eddy.io.vn/callback/})")
+                        st.markdown(f"[🌐 Open Webhook URL](https://eddy.io.vn/callback/)")
 
 
                     if st.button("📋 Copy Payment Token", key=f"{KEY_PREFIX}_copy_token"):
