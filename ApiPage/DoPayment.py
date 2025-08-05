@@ -28,7 +28,7 @@ def render_do_payment():
 
         # Locale and Return URL
         locale = st.text_input("🌐 Locale", "en")
-        return_url = st.text_input("🔁 Response Return URL", "https://eddy.io.vn/callback/webhook/callback-frontend")
+        # return_url = st.text_input("🔁 Response Return URL", "https://eddy.io.vn/callback/webhook/callback-frontend")
 
         st.markdown("## 💰 Channel Code")
 
