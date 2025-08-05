@@ -378,7 +378,6 @@ def render_do_payment():
                         "clientID": client_id,
                         "clientIP": client_ip,
                         "locale": locale,
-                        "responseReturnUrl": return_url,
                         "payment": {
                             "code": code_json,
                             "data": payment_data
