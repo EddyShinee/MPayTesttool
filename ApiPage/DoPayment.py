@@ -28,7 +28,7 @@ def render_do_payment():
 
         # Locale and Return URL
         locale = st.text_input("🌐 Locale", "en")
-        return_url = st.text_input("🔁 Response Return URL", "https://webhook.site/08fd12ec-4a71-4499-968c-0dbe729b8686")
+        return_url = st.text_input("🔁 Response Return URL", "https://eddy.io.vn/callback/webhook/payment")
 
         st.markdown("## 💰 Channel Code")
 
@@ -108,7 +108,7 @@ def render_do_payment():
         if all([card_number, expiry_month, expiry_year, cvv]):
             st.markdown("### 🧾 2C2P Card Encryption Form")
             button_html = f'''
-            <form id="2c2p-payment-form" action="https://webhook.site/08fd12ec-4a71-4499-968c-0dbe729b8686" method="POST">
+            <form id="2c2p-payment-form" action="https://eddy.io.vn/callback/webhook/" method="POST">
                 <input type="hidden" data-encrypt="cardnumber" value="{card_number.replace(" ", "")}">
                 <input type="hidden" data-encrypt="month" value="{expiry_month}">
                 <input type="hidden" data-encrypt="year" value="{expiry_year}">
