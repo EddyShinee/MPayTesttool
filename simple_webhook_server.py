@@ -129,20 +129,48 @@ class WebhookHandler(BaseHTTPRequestHandler):
             }
             self.send_json_response(500, error_response)
 
-    def handle_callback_frontend(self):
-        """Handle callback-frontend GET request with paymentResponse parameter"""
+    def handle_callback_frontend(self, method):
+        """Handle callback-frontend GET/POST request with paymentResponse parameter"""
         try:
-            # Parse query parameters
-            parsed_path = urlparse(self.path)
-            query_params = parse_qs(parsed_path.query)
+            payment_response = None
             
-            # Get paymentResponse parameter
-            payment_response = query_params.get('paymentResponse', [None])[0]
-            
-            if not payment_response:
-                self.send_error_html("Missing paymentResponse parameter")
-                return
-            
+            if method == 'GET':
+                # Parse query parameters for GET request
+                parsed_path = urlparse(self.path)
+                query_params = parse_qs(parsed_path.query)
+                payment_response = query_params.get('paymentResponse', [None])[0]
+                
+                if not payment_response:
+                    self.send_error_html("Missing paymentResponse parameter in query string")
+                    return
+                    
+            elif method == 'POST':
+                # Get request body for POST request
+                content_length = int(self.headers.get('Content-Length', 0))
+                if content_length == 0:
+                    self.send_error_html("Missing request body")
+                    return
+                    
+                body_raw = self.rfile.read(content_length)
+                body_str = body_raw.decode('utf-8')
+                
+                # Try to parse as form data first
+                if 'application/x-www-form-urlencoded' in self.headers.get('Content-Type', ''):
+                    form_data = parse_qs(body_str)
+                    payment_response = form_data.get('paymentResponse', [None])[0]
+                else:
+                    # Try to parse as JSON
+                    try:
+                        json_data = json.loads(body_str)
+                        payment_response = json_data.get('paymentResponse')
+                    except json.JSONDecodeError:
+                        # If not JSON, treat the entire body as paymentResponse
+                        payment_response = body_str
+
+                if not payment_response:
+                    self.send_error_html("Missing paymentResponse parameter in request body")
+                    return
+
             # Decode base64
             try:
                 decoded_bytes = base64.b64decode(payment_response)
@@ -150,25 +178,32 @@ class WebhookHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 self.send_error_html(f"Error decoding paymentResponse: {str(e)}")
                 return
-            
+
             # Store in webhook storage
             webhook_entry = {
                 "id": len(webhook_storage) + 1,
                 "timestamp": datetime.datetime.now().isoformat(),
-                "method": "GET",
+                "method": method,
                 "path": self.path,
                 "headers": dict(self.headers),
                 "body": decoded_json,
+                "raw_payment_response": payment_response,
                 "client_address": self.client_address[0],
                 "type": "callback-frontend"
             }
             webhook_storage.insert(0, webhook_entry)
             if len(webhook_storage) > MAX_STORAGE:
                 webhook_storage.pop()
-            
+
+            # Print to console
+            print(f"\n🔄 Callback-frontend webhook received at {webhook_entry['timestamp']}")
+            print(f"Method: {method}")
+            print(f"Decoded Data: {decoded_json}")
+            print("-" * 60)
+
             # Send success HTML
             self.send_callback_success_html(decoded_json)
-            
+
         except Exception as e:
             print(f"❌ Error processing callback-frontend: {str(e)}")
             self.send_error_html(f"Internal server error: {str(e)}")
@@ -186,7 +221,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                         body_data = json.loads(body_raw.decode('utf-8'))
                     except json.JSONDecodeError:
                         body_data = body_raw.decode('utf-8')
-            
+
             # Store in webhook storage
             webhook_entry = {
                 "id": len(webhook_storage) + 1,
@@ -201,23 +236,23 @@ class WebhookHandler(BaseHTTPRequestHandler):
             webhook_storage.insert(0, webhook_entry)
             if len(webhook_storage) > MAX_STORAGE:
                 webhook_storage.pop()
-            
+
             # Print to console
             print(f"\n🔐 Encrypt-card webhook received at {webhook_entry['timestamp']}")
             print(f"Method: {method}")
             print(f"Body: {body_data}")
             print("-" * 60)
-            
+
             # Send success HTML
             self.send_encrypt_success_html(body_data)
-            
+
         except Exception as e:
             print(f"❌ Error processing encrypt-card: {str(e)}")
             self.send_error_html(f"Internal server error: {str(e)}")
 
     def send_callback_success_html(self, decoded_data):
         """Send success HTML for callback-frontend"""
-        html_content = f"""
+        html_content = """
         <!DOCTYPE html>
         <html lang="en">
         <head>
@@ -226,7 +261,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
             <title>✅ Payment Callback Success</title>
             <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
             <style>
-                body {{
+                body {
                     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                     background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
                     min-height: 100vh;
@@ -235,8 +270,8 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     justify-content: center;
                     margin: 0;
                     padding: 20px;
-                }}
-                .container {{
+                }
+                .container {
                     background: white;
                     border-radius: 20px;
                     padding: 40px;
@@ -244,37 +279,37 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     width: 100%;
                     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
                     text-align: center;
-                }}
-                .success-icon {{
+                }
+                .success-icon {
                     font-size: 4em;
                     color: #48bb78;
                     margin-bottom: 20px;
-                }}
-                .title {{
+                }
+                .title {
                     font-size: 2em;
                     font-weight: 700;
                     color: #2d3748;
                     margin-bottom: 20px;
-                }}
-                .message {{
+                }
+                .message {
                     font-size: 1.2em;
                     color: #4a5568;
                     margin-bottom: 30px;
-                }}
-                .data-container {{
+                }
+                .data-container {
                     background: #f7fafc;
                     border-radius: 10px;
                     padding: 20px;
                     text-align: left;
                     margin-bottom: 30px;
-                }}
-                .data-title {{
+                }
+                .data-title {
                     font-weight: 600;
                     color: #2d3748;
                     margin-bottom: 15px;
                     font-size: 1.1em;
-                }}
-                .data-content {{
+                }
+                .data-content {
                     background: #2d3748;
                     color: #e2e8f0;
                     padding: 15px;
@@ -283,8 +318,8 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     font-size: 0.9em;
                     white-space: pre-wrap;
                     overflow-x: auto;
-                }}
-                .back-link {{
+                }
+                .back-link {
                     display: inline-flex;
                     align-items: center;
                     gap: 8px;
@@ -295,10 +330,10 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     border-radius: 10px;
                     font-weight: 600;
                     transition: transform 0.3s ease;
-                }}
-                .back-link:hover {{
+                }
+                .back-link:hover {
                     transform: translateY(-2px);
-                }}
+                }
             </style>
         </head>
         <body>
@@ -311,7 +346,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 
                 <div class="data-container">
                     <div class="data-title">📋 Decoded Payment Information:</div>
-                    <div class="data-content">{json.dumps(decoded_data, indent=2, ensure_ascii=False)}</div>
+                    <div class="data-content">""" + json.dumps(decoded_data, indent=2, ensure_ascii=False) + """</div>
                 </div>
                 
                 <a href="/" class="back-link">
@@ -319,25 +354,10 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     Back to Webhook Monitor
                 </a>
             </div>
-            
-            <script>
-                // If this page is loaded in an iframe, notify parent
-                if (window.parent !== window) {
-                    try {
-                        window.parent.postMessage({{
-                            type: 'CARD_ENCRYPTION_SUCCESS',
-                            status: 'success',
-                            message: 'Card encryption completed successfully'
-                        }}, '*');
-                    }} catch (e) {{
-                        console.log('Could not communicate with parent window:', e);
-                    }}
-                }}
-            </script>
         </body>
         </html>
         """
-        
+
         self.send_response(200)
         self.send_header('Content-type', 'text/html; charset=utf-8')
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -347,7 +367,16 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
     def send_encrypt_success_html(self, request_data):
         """Send success HTML for encrypt-card"""
-        html_content = f"""
+        data_section = ""
+        if request_data:
+            data_section = f"""
+            <div class="data-container">
+                <div class="data-title">📋 Request Data:</div>
+                <div class="data-content">{json.dumps(request_data, indent=2, ensure_ascii=False) if request_data else "No request data"}</div>
+            </div>
+            """
+
+        html_content = """
         <!DOCTYPE html>
         <html lang="en">
         <head>
@@ -356,7 +385,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
             <title>🔐 Card Encryption Success</title>
             <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
             <style>
-                body {{
+                body {
                     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                     background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
                     min-height: 100vh;
@@ -365,8 +394,8 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     justify-content: center;
                     margin: 0;
                     padding: 20px;
-                }}
-                .container {{
+                }
+                .container {
                     background: white;
                     border-radius: 20px;
                     padding: 40px;
@@ -374,24 +403,24 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     width: 100%;
                     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
                     text-align: center;
-                }}
-                .success-icon {{
+                }
+                .success-icon {
                     font-size: 4em;
                     color: #4299e1;
                     margin-bottom: 20px;
-                }}
-                .title {{
+                }
+                .title {
                     font-size: 2em;
                     font-weight: 700;
                     color: #2d3748;
                     margin-bottom: 20px;
-                }}
-                .message {{
+                }
+                .message {
                     font-size: 1.2em;
                     color: #4a5568;
                     margin-bottom: 30px;
-                }}
-                .ok-badge {{
+                }
+                .ok-badge {
                     background: linear-gradient(135deg, #48bb78, #38a169);
                     color: white;
                     padding: 15px 30px;
@@ -401,21 +430,21 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     display: inline-block;
                     margin-bottom: 30px;
                     box-shadow: 0 5px 15px rgba(72, 187, 120, 0.3);
-                }}
-                .data-container {{
+                }
+                .data-container {
                     background: #f7fafc;
                     border-radius: 10px;
                     padding: 20px;
                     text-align: left;
                     margin-bottom: 30px;
-                }}
-                .data-title {{
+                }
+                .data-title {
                     font-weight: 600;
                     color: #2d3748;
                     margin-bottom: 15px;
                     font-size: 1.1em;
-                }}
-                .data-content {{
+                }
+                .data-content {
                     background: #2d3748;
                     color: #e2e8f0;
                     padding: 15px;
@@ -424,8 +453,8 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     font-size: 0.9em;
                     white-space: pre-wrap;
                     overflow-x: auto;
-                }}
-                .back-link {{
+                }
+                .back-link {
                     display: inline-flex;
                     align-items: center;
                     gap: 8px;
@@ -436,10 +465,10 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     border-radius: 10px;
                     font-weight: 600;
                     transition: transform 0.3s ease;
-                }}
-                .back-link:hover {{
+                }
+                .back-link:hover {
                     transform: translateY(-2px);
-                }}
+                }
             </style>
         </head>
         <body>
@@ -451,38 +480,17 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 <div class="ok-badge">✅ OK</div>
                 <p class="message">Your card encryption request has been processed successfully.</p>
                 
-                {f'''
-                <div class="data-container">
-                    <div class="data-title">📋 Request Data:</div>
-                    <div class="data-content">{json.dumps(request_data, indent=2, ensure_ascii=False) if request_data else "No request data"}</div>
-                </div>
-                ''' if request_data else ''}
+                """ + data_section + """
                 
                 <a href="/" class="back-link">
                     <i class="fas fa-arrow-left"></i>
                     Back to Webhook Monitor
                 </a>
             </div>
-            
-            <script>
-                // If this page is loaded in an iframe, notify parent
-                if (window.parent !== window) {
-                    try {
-                        window.parent.postMessage({{
-                            type: 'PAYMENT_CALLBACK_SUCCESS',
-                            status: 'success',
-                            message: 'Payment callback processed successfully',
-                            data: {json.dumps(decoded_data, ensure_ascii=False)}
-                        }}, '*');
-                    }} catch (e) {{
-                        console.log('Could not communicate with parent window:', e);
-                    }}
-                }}
-            </script>
         </body>
         </html>
         """
-        
+
         self.send_response(200)
         self.send_header('Content-type', 'text/html; charset=utf-8')
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -499,7 +507,6 @@ class WebhookHandler(BaseHTTPRequestHandler):
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>❌ Error</title>
-            <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
             <style>
                 body {{
                     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -517,17 +524,10 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     padding: 40px;
                     max-width: 600px;
                     width: 100%;
-                    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
                     text-align: center;
-                }}
-                .error-icon {{
-                    font-size: 4em;
-                    color: #f56565;
-                    margin-bottom: 20px;
                 }}
                 .title {{
                     font-size: 2em;
-                    font-weight: 700;
                     color: #2d3748;
                     margin-bottom: 20px;
                 }}
@@ -538,57 +538,18 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     padding: 20px;
                     background: #fed7d7;
                     border-radius: 10px;
-                    border-left: 4px solid #f56565;
-                }}
-                .back-link {{
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 8px;
-                    background: linear-gradient(135deg, #667eea, #764ba2);
-                    color: white;
-                    text-decoration: none;
-                    padding: 12px 24px;
-                    border-radius: 10px;
-                    font-weight: 600;
-                    transition: transform 0.3s ease;
-                }}
-                .back-link:hover {{
-                    transform: translateY(-2px);
                 }}
             </style>
         </head>
         <body>
             <div class="container">
-                <div class="error-icon">
-                    <i class="fas fa-exclamation-triangle"></i>
-                </div>
                 <h1 class="title">Request Failed</h1>
                 <div class="message">{html_module.escape(error_message)}</div>
-                
-                <a href="/" class="back-link">
-                    <i class="fas fa-arrow-left"></i>
-                    Back to Webhook Monitor
-                </a>
             </div>
-            
-            <script>
-                // If this page is loaded in an iframe, notify parent
-                if (window.parent !== window) {
-                    try {
-                        window.parent.postMessage({{
-                            type: 'WEBHOOK_ERROR',
-                            status: 'error',
-                            message: '{html_module.escape(error_message)}'
-                        }}, '*');
-                    }} catch (e) {{
-                        console.log('Could not communicate with parent window:', e);
-                    }}
-                }}
-            </script>
         </body>
         </html>
         """
-        
+
         self.send_response(400)
         self.send_header('Content-type', 'text/html; charset=utf-8')
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -598,6 +559,34 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
     def send_home_page(self):
         """Send beautiful HTML home page"""
+        endpoints_html = f"""
+        <div class="endpoint-item">
+            <i class="fas fa-globe"></i>
+            <span class="endpoint-url">http://localhost:8000/webhook</span>
+            <span>Main webhook endpoint</span>
+        </div>
+        <div class="endpoint-item">
+            <i class="fas fa-credit-card"></i>
+            <span class="endpoint-url">http://localhost:8000/webhook/payment</span>
+            <span>Payment webhook endpoint</span>
+        </div>
+        <div class="endpoint-item">
+            <i class="fas fa-arrow-left"></i>
+            <span class="endpoint-url">http://localhost:8000/webhook/callback-frontend</span>
+            <span>Frontend callback (GET/POST with paymentResponse)</span>
+        </div>
+        <div class="endpoint-item">
+            <i class="fas fa-shield-alt"></i>
+            <span class="endpoint-url">http://localhost:8000/webhook/encrypt-card</span>
+            <span>Card encryption webhook (GET/POST)</span>
+        </div>
+        <div class="endpoint-item">
+            <i class="fas fa-database"></i>
+            <span class="endpoint-url">http://localhost:8000/webhooks</span>
+            <span>JSON API - All webhooks</span>
+        </div>
+        """
+
         html_content = f"""
         <!DOCTYPE html>
         <html lang="en">
@@ -608,281 +597,26 @@ class WebhookHandler(BaseHTTPRequestHandler):
             <meta http-equiv="refresh" content="30">
             <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
             <style>
-                * {{
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                }}
-
-                body {{
-                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    min-height: 100vh;
-                    color: #2d3748;
-                    font-size: 13px;
-                }}
-
-                .container {{
-                    max-width: 1200px;
-                    margin: 0 auto;
-                    padding: 20px;
-                }}
-
-                .header {{
-                    background: rgba(255, 255, 255, 0.95);
-                    backdrop-filter: blur(10px);
-                    border-radius: 20px;
-                    padding: 30px;
-                    margin-bottom: 30px;
-                    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-                    text-align: center;
-                }}
-
-                .header h1 {{
-                    font-size: 2em;
-                    font-weight: 700;
-                    background: linear-gradient(135deg, #667eea, #764ba2);
-                    -webkit-background-clip: text;
-                    -webkit-text-fill-color: transparent;
-                    margin-bottom: 10px;
-                }}
-
-                .stats {{
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                    gap: 20px;
-                    margin-bottom: 30px;
-                }}
-
-                .stat-card {{
-                    background: rgba(255, 255, 255, 0.95);
-                    backdrop-filter: blur(10px);
-                    border-radius: 15px;
-                    padding: 25px;
-                    text-align: center;
-                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-                    transition: transform 0.3s ease;
-                }}
-
-                .stat-card:hover {{
-                    transform: translateY(-5px);
-                }}
-
-                .stat-number {{
-                    font-size: 2em;
-                    font-weight: 700;
-                    color: #667eea;
-                    margin-bottom: 5px;
-                }}
-
-                .stat-label {{
-                    color: #718096;
-                    font-weight: 500;
-                    text-transform: uppercase;
-                    font-size: 0.75em;
-                    letter-spacing: 1px;
-                }}
-
-                .webhooks-container {{
-                    background: rgba(255, 255, 255, 0.95);
-                    backdrop-filter: blur(10px);
-                    border-radius: 20px;
-                    padding: 30px;
-                    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-                }}
-
-                .section-header {{
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 25px;
-                    padding-bottom: 15px;
-                    border-bottom: 2px solid #e2e8f0;
-                }}
-
-                .section-title {{
-                    font-size: 1.4em;
-                    font-weight: 600;
-                    color: #2d3748;
-                }}
-
-                .action-buttons {{
-                    display: flex;
-                    gap: 10px;
-                }}
-
-                .btn {{
-                    padding: 10px 20px;
-                    border: none;
-                    border-radius: 10px;
-                    font-weight: 600;
-                    cursor: pointer;
-                    transition: all 0.3s ease;
-                    text-decoration: none;
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 8px;
-                }}
-
-                .btn-primary {{
-                    background: linear-gradient(135deg, #667eea, #764ba2);
-                    color: white;
-                }}
-
-                .btn-danger {{
-                    background: linear-gradient(135deg, #fc8181, #f56565);
-                    color: white;
-                }}
-
-                .btn:hover {{
-                    transform: translateY(-2px);
-                    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-                }}
-
-                .webhook-item {{
-                    background: #f8fafc;
-                    border: 1px solid #e2e8f0;
-                    border-radius: 15px;
-                    padding: 20px;
-                    margin-bottom: 20px;
-                    transition: all 0.3s ease;
-                }}
-
-                .webhook-item:hover {{
-                    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-                    transform: translateY(-2px);
-                }}
-
-                .webhook-header {{
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 15px;
-                }}
-
-                .method-badge {{
-                    padding: 6px 12px;
-                    border-radius: 20px;
-                    font-size: 0.7em;
-                    font-weight: 700;
-                    text-transform: uppercase;
-                    letter-spacing: 1px;
-                }}
-
-                .method-POST {{
-                    background: #48bb78;
-                    color: white;
-                }}
-
-                .method-GET {{
-                    background: #4299e1;
-                    color: white;
-                }}
-
-                .method-PUT {{
-                    background: #ed8936;
-                    color: white;
-                }}
-
-                .method-DELETE {{
-                    background: #f56565;
-                    color: white;
-                }}
-
-                .webhook-path {{
-                    font-family: 'Monaco', 'Menlo', monospace;
-                    background: #2d3748;
-                    color: #e2e8f0;
-                    padding: 8px 12px;
-                    border-radius: 6px;
-                    font-size: 0.8em;
-                }}
-
-                .webhook-time {{
-                    color: #718096;
-                    font-size: 0.8em;
-                }}
-
-                .webhook-body {{
-                    background: #2d3748;
-                    color: #e2e8f0;
-                    padding: 15px;
-                    border-radius: 10px;
-                    font-family: 'Monaco', 'Menlo', monospace;
-                    font-size: 0.75em;
-                    white-space: pre-wrap;
-                    word-break: break-all;
-                    max-height: 200px;
-                    overflow-y: auto;
-                    line-height: 1.4;
-                }}
-
-                .no-webhooks {{
-                    text-align: center;
-                    padding: 60px 20px;
-                    color: #718096;
-                }}
-
-                .no-webhooks i {{
-                    font-size: 3em;
-                    margin-bottom: 20px;
-                    opacity: 0.5;
-                }}
-
-                .endpoints {{
-                    background: rgba(255, 255, 255, 0.95);
-                    backdrop-filter: blur(10px);
-                    border-radius: 20px;
-                    padding: 30px;
-                    margin-bottom: 30px;
-                    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-                }}
-
-                .endpoint-list {{
-                    display: grid;
-                    gap: 15px;
-                }}
-
-                .endpoint-item {{
-                    display: flex;
-                    align-items: center;
-                    gap: 15px;
-                    padding: 15px;
-                    background: #f8fafc;
-                    border-radius: 10px;
-                    border-left: 4px solid #667eea;
-                }}
-
-                .endpoint-url {{
-                    font-family: 'Monaco', 'Menlo', monospace;
-                    font-weight: 600;
-                    color: #2d3748;
-                }}
-
-                @media (max-width: 768px) {{
-                    .container {{
-                        padding: 15px;
-                    }}
-                    
-                    .header h1 {{
-                        font-size: 1.6em;
-                    }}
-                    
-                    .stats {{
-                        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-                        gap: 15px;
-                    }}
-                    
-                    .webhook-header {{
-                        flex-direction: column;
-                        align-items: flex-start;
-                        gap: 10px;
-                    }}
-                    
-                    .action-buttons {{
-                        flex-direction: column;
-                    }}
-                }}
+                * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+                body {{ font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; color: #2d3748; font-size: 13px; }}
+                .container {{ max-width: 1200px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-radius: 20px; padding: 30px; margin-bottom: 30px; text-align: center; }}
+                .header h1 {{ font-size: 2em; font-weight: 700; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 10px; }}
+                .stats {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }}
+                .stat-card {{ background: rgba(255, 255, 255, 0.95); border-radius: 15px; padding: 25px; text-align: center; }}
+                .stat-number {{ font-size: 2em; font-weight: 700; color: #667eea; margin-bottom: 5px; }}
+                .stat-label {{ color: #718096; font-weight: 500; text-transform: uppercase; font-size: 0.75em; }}
+                .endpoints {{ background: rgba(255, 255, 255, 0.95); border-radius: 20px; padding: 30px; margin-bottom: 30px; }}
+                .section-title {{ font-size: 1.4em; font-weight: 600; color: #2d3748; margin-bottom: 25px; }}
+                .endpoint-list {{ display: grid; gap: 15px; }}
+                .endpoint-item {{ display: flex; align-items: center; gap: 15px; padding: 15px; background: #f8fafc; border-radius: 10px; border-left: 4px solid #667eea; }}
+                .endpoint-url {{ font-family: 'Monaco', monospace; font-weight: 600; color: #2d3748; }}
+                .webhooks-container {{ background: rgba(255, 255, 255, 0.95); border-radius: 20px; padding: 30px; }}
+                .section-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 2px solid #e2e8f0; }}
+                .action-buttons {{ display: flex; gap: 10px; }}
+                .btn {{ padding: 10px 20px; border: none; border-radius: 10px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }}
+                .btn-primary {{ background: linear-gradient(135deg, #667eea, #764ba2); color: white; }}
+                .btn-danger {{ background: linear-gradient(135deg, #fc8181, #f56565); color: white; }}
             </style>
         </head>
         <body>
@@ -901,42 +635,12 @@ class WebhookHandler(BaseHTTPRequestHandler):
                         <div class="stat-number">{self._get_recent_count()}</div>
                         <div class="stat-label">Last Hour</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-number">{len(set(w.get('client_address', 'unknown') for w in webhook_storage))}</div>
-                        <div class="stat-label">Unique IPs</div>
-                    </div>
                 </div>
 
                 <div class="endpoints">
-                    <div class="section-header">
-                        <h2 class="section-title"><i class="fas fa-link"></i> Available Endpoints</h2>
-                    </div>
+                    <h2 class="section-title"><i class="fas fa-link"></i> Available Endpoints</h2>
                     <div class="endpoint-list">
-                        <div class="endpoint-item">
-                            <i class="fas fa-globe"></i>
-                            <span class="endpoint-url">http://localhost:8000/webhook</span>
-                            <span>Main webhook endpoint</span>
-                        </div>
-                        <div class="endpoint-item">
-                            <i class="fas fa-credit-card"></i>
-                            <span class="endpoint-url">http://localhost:8000/webhook/payment</span>
-                            <span>Payment webhook endpoint</span>
-                        </div>
-                        <div class="endpoint-item">
-                            <i class="fas fa-arrow-left"></i>
-                            <span class="endpoint-url">http://localhost:8000/webhook/callback-frontend</span>
-                            <span>Frontend callback (GET/POST with paymentResponse)</span>
-                        </div>
-                        <div class="endpoint-item">
-                            <i class="fas fa-shield-alt"></i>
-                            <span class="endpoint-url">http://localhost:8000/webhook/encrypt-card</span>
-                            <span>Card encryption webhook (GET/POST)</span>
-                        </div>
-                        <div class="endpoint-item">
-                            <i class="fas fa-database"></i>
-                            <span class="endpoint-url">http://localhost:8000/webhooks</span>
-                            <span>JSON API - All webhooks</span>
-                        </div>
+                        {endpoints_html}
                     </div>
                 </div>
 
@@ -952,28 +656,9 @@ class WebhookHandler(BaseHTTPRequestHandler):
                             </a>
                         </div>
                     </div>
-                    
                     {self._get_beautiful_webhooks_html()}
                 </div>
             </div>
-
-            <script>
-                // Auto-refresh every 30 seconds
-                setTimeout(() => {{
-                    location.reload();
-                }}, 30000);
-                
-                // Add click to copy functionality
-                document.querySelectorAll('.webhook-body').forEach(el => {{
-                    el.addEventListener('click', () => {{
-                        navigator.clipboard.writeText(el.textContent);
-                        el.style.background = '#48bb78';
-                        setTimeout(() => {{
-                            el.style.background = '#2d3748';
-                        }}, 500);
-                    }});
-                }});
-            </script>
         </body>
         </html>
         """
@@ -1001,8 +686,8 @@ class WebhookHandler(BaseHTTPRequestHandler):
         """Get beautiful HTML for webhooks"""
         if not webhook_storage:
             return """
-            <div class="no-webhooks">
-                <i class="fas fa-inbox"></i>
+            <div style="text-align: center; padding: 60px 20px; color: #718096;">
+                <i class="fas fa-inbox" style="font-size: 3em; margin-bottom: 20px; opacity: 0.5;"></i>
                 <h3>No webhooks received yet</h3>
                 <p>Send a POST request to any endpoint to see webhooks appear here</p>
             </div>
@@ -1028,7 +713,6 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 body_display = json.dumps(body, indent=2, ensure_ascii=False)
             elif isinstance(body, str) and body:
                 try:
-                    # Try to parse as JSON for pretty printing
                     parsed = json.loads(body)
                     body_display = json.dumps(parsed, indent=2, ensure_ascii=False)
                 except:
@@ -1036,23 +720,29 @@ class WebhookHandler(BaseHTTPRequestHandler):
             else:
                 body_display = str(body) if body else "No body data"
 
+            method_colors = {
+                'POST': '#48bb78', 'GET': '#4299e1', 
+                'PUT': '#ed8936', 'DELETE': '#f56565'
+            }
+            method_color = method_colors.get(method, '#718096')
+
             html_content += f"""
-            <div class="webhook-item">
-                <div class="webhook-header">
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 15px; padding: 20px; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <div style="display: flex; align-items: center; gap: 15px;">
-                        <span class="method-badge method-{method}">{method}</span>
-                        <span class="webhook-path">{path}</span>
+                        <span style="background: {method_color}; color: white; padding: 6px 12px; border-radius: 20px; font-size: 0.7em; font-weight: 700; text-transform: uppercase;">{method}</span>
+                        <span style="font-family: Monaco, monospace; background: #2d3748; color: #e2e8f0; padding: 8px 12px; border-radius: 6px; font-size: 0.8em;">{path}</span>
                     </div>
                     <div style="text-align: right;">
-                        <div class="webhook-time">
+                        <div style="color: #718096; font-size: 0.8em;">
                             <i class="fas fa-clock"></i> {formatted_time}
                         </div>
-                        <div class="webhook-time">
+                        <div style="color: #718096; font-size: 0.8em;">
                             <i class="fas fa-map-marker-alt"></i> {client_ip}
                         </div>
                     </div>
                 </div>
-                <div class="webhook-body" title="Click to copy">{html_module.escape(body_display)}</div>
+                <div style="background: #2d3748; color: #e2e8f0; padding: 15px; border-radius: 10px; font-family: Monaco, monospace; font-size: 0.75em; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto;">{html_module.escape(body_display)}</div>
             </div>
             """
         return html_content
