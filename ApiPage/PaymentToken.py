@@ -143,7 +143,7 @@ class PaymentTokenGenerator:
                 if st.checkbox("Frontend Return URL", key=f"{KEY_PREFIX}_checkbox_frontendReturnUrl"):
                     optional_fields['frontendReturnUrl'] = st.text_input(
                         "Frontend Return URL",
-                        "https://webhook.site/08fd12ec-4a71-4499-968c-0dbe729b8686",
+                        "https://eddy.io.vn/callback/webhook/payment",
                         key=f"{KEY_PREFIX}_frontend_return_url"
                     )
 
@@ -151,7 +151,7 @@ class PaymentTokenGenerator:
                 if st.checkbox("Backend Return URL", key=f"{KEY_PREFIX}_checkbox_backendReturnUrl"):
                     optional_fields['backendReturnUrl'] = st.text_input(
                         "Backend Return URL",
-                        "https://webhook.site/08fd12ec-4a71-4499-968c-0dbe729b8686",
+                        "https://eddy.io.vn/callback/webhook/payment",
                         key=f"{KEY_PREFIX}_backend_return_url"
                     )
 
@@ -524,6 +524,8 @@ class PaymentTokenGenerator:
                     web_url = decoded_payload.get('webPaymentUrl')
                     if web_url:
                         st.markdown(f"[🌐 Open Payment URL]({web_url})")
+                        st.markdown(f"[🌐 Open Webhook URL]({https://eddy.io.vn/callback/})")
+
 
                     if st.button("📋 Copy Payment Token", key=f"{KEY_PREFIX}_copy_token"):
                         payment_token = decoded_payload.get('paymentToken', 'Token not found')
