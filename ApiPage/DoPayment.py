@@ -108,7 +108,7 @@ def render_do_payment():
         if all([card_number, expiry_month, expiry_year, cvv]):
             st.markdown("### 🧾 2C2P Card Encryption Form")
             button_html = f'''
-            <form id="2c2p-payment-form" action="https://eddy.io.vn/callback/webhook/" method="POST">
+            <form id="2c2p-payment-form" action="https://eddy.io.vn/callback/webhook/encrypt-card" method="POST">
                 <input type="hidden" data-encrypt="cardnumber" value="{card_number.replace(" ", "")}">
                 <input type="hidden" data-encrypt="month" value="{expiry_month}">
                 <input type="hidden" data-encrypt="year" value="{expiry_year}">

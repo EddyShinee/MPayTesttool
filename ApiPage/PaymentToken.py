@@ -143,7 +143,7 @@ class PaymentTokenGenerator:
                 if st.checkbox("Frontend Return URL", key=f"{KEY_PREFIX}_checkbox_frontendReturnUrl"):
                     optional_fields['frontendReturnUrl'] = st.text_input(
                         "Frontend Return URL",
-                        "https://eddy.io.vn/callback/webhook/payment",
+                        "https://eddy.io.vn/callback/webhook/callback-frontend",
                         key=f"{KEY_PREFIX}_frontend_return_url"
                     )
 
