@@ -75,14 +75,21 @@ def render_do_payment():
 
         st.code(json.dumps(payment_data, indent=2), language="json")
 
-
-        from urllib.parse import parse_qs
-        if encrypted_response:
-            parsed_qs = parse_qs(encrypted_response)
-            if 'encryptedCardInfo' in parsed_qs:
-                secure_token = parsed_qs['encryptedCardInfo'][0]
-                st.session_state.secure_token_input = secure_token
-                st.success("✅ securePayToken auto-filled from Encrypted Card Info.")
+        # # --- Encrypted Card Info Response Input ---
+        # encrypted_response = st.text_area(
+        #     "🔐 Encrypted Card Info Response",
+        #     "",
+        #     help="Paste full query string here (e.g., encryptedCardInfo=...&...)",
+        #     height=100
+        # )
+        #
+        # from urllib.parse import parse_qs
+        # if encrypted_response:
+        #     parsed_qs = parse_qs(encrypted_response)
+        #     if 'encryptedCardInfo' in parsed_qs:
+        #         secure_token = parsed_qs['encryptedCardInfo'][0]
+        #         st.session_state.secure_token_input = secure_token
+        #         st.success("✅ securePayToken auto-filled from Encrypted Card Info.")
 
         secure_token_input = st.text_input("🔐 securePayToken", key="secure_token_input")
 
