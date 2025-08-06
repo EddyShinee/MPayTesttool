@@ -734,10 +734,10 @@ class WebhookHandler(BaseHTTPRequestHandler):
                         <span style="font-family: Monaco, monospace; background: #2d3748; color: #e2e8f0; padding: 8px 12px; border-radius: 6px; font-size: 0.8em;">{path}</span>
                     </div>
                     <div style="text-align: right;">
-                        <div style="color: #718096; font-size: 0.8em;">
+                        <div style="color: #718096; font-size: 1em;">
                             <i class="fas fa-clock"></i> {formatted_time}
                         </div>
-                        <div style="color: #718096; font-size: 0.8em;">
+                        <div style="color: #718096; font-size: 1em;">
                             <i class="fas fa-map-marker-alt"></i> {client_ip}
                         </div>
                     </div>
