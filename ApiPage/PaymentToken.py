@@ -474,22 +474,6 @@ class PaymentTokenGenerator:
             last_result = st.session_state["last_request_result"]
             last_time = st.session_state.get("last_request_time", datetime.datetime.now())
 
-            # Summary card
-            if last_result['success']:
-                st.success(f"""
-                ✅ **Last Request: SUCCESS**  
-                ⏱️ Duration: {last_result.get('duration', 0):.2f}s  
-                📅 At: {last_time.strftime('%H:%M:%S')}
-                """)
-            else:
-                st.error(f"""
-                ❌ **Last Request: FAILED**  
-                💥 Error: {last_result.get('error', 'Unknown')}  
-                📅 At: {last_time.strftime('%H:%M:%S')}
-                """)
-
-            st.markdown("---")
-
         # Original response sections
         st.subheader("📤 Request Payload (Unencrypted):")
         payload_data = self.session_state.get("payload_data", {})
