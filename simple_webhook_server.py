@@ -341,7 +341,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 <div class="success-icon">
                     <i class="fas fa-check-circle"></i>
                 </div>
-                <h1 class="title">Payment Callback Received!</h1>
+                <h1 class="title">Payment Redirect Received!</h1>
                 <p class="message">Your payment response has been successfully processed and decoded.</p>
                 
                 <div class="data-container">

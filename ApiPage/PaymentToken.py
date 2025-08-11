@@ -531,7 +531,7 @@ class PaymentTokenGenerator:
             if st.button("📋 Copy JWT", key=f"{KEY_PREFIX}_copy_jwt"):
                 success, error_msg = generator_instance.copy_to_clipboard(request_payload, "JWT") if generator_instance else (False, "Generator instance not available")
                 if success:
-                    st.success("✅ JWT copied to clipboard!")
+                    st.toast("JWT copied to clipboard!", icon="✅")
                 else:
                     st.error(f"❌ Failed to copy to clipboard: {error_msg}")
                     st.warning("⚠️ Please copy the JWT manually from below:")
@@ -568,7 +568,7 @@ class PaymentTokenGenerator:
                         payment_token = decoded_payload.get('paymentToken', 'Token not found')
                         success, error_msg = generator_instance.copy_to_clipboard(payment_token, "Payment Token") if generator_instance else (False, "Generator instance not available")
                         if success:
-                            st.success("✅ Payment token copied to clipboard!")
+                            st.toast("Payment token copied to clipboard!", icon="✅")
                         else:
                             st.error(f"❌ Failed to copy to clipboard: {error_msg}")
                             st.warning("⚠️ Please copy the token manually from below:")
