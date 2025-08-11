@@ -562,27 +562,27 @@ class WebhookHandler(BaseHTTPRequestHandler):
         endpoints_html = f"""
         <div class="endpoint-item">
             <i class="fas fa-globe"></i>
-            <span class="endpoint-url">http://localhost:8000/webhook</span>
+            <span class="endpoint-url">https://eddy.io.vn/callback/webhook</span>
             <span>Main webhook endpoint</span>
         </div>
         <div class="endpoint-item">
             <i class="fas fa-credit-card"></i>
-            <span class="endpoint-url">http://localhost:8000/webhook/payment</span>
+            <span class="endpoint-url">https://eddy.io.vn/callback/webhook/payment</span>
             <span>Payment webhook endpoint</span>
         </div>
         <div class="endpoint-item">
             <i class="fas fa-arrow-left"></i>
-            <span class="endpoint-url">http://localhost:8000/webhook/callback-frontend</span>
+            <span class="endpoint-url">https://eddy.io.vn/callback/webhook/callback-frontend</span>
             <span>Frontend callback (GET/POST with paymentResponse)</span>
         </div>
         <div class="endpoint-item">
             <i class="fas fa-shield-alt"></i>
-            <span class="endpoint-url">http://localhost:8000/webhook/encrypt-card</span>
+            <span class="endpoint-url">https://eddy.io.vn/callback/webhook/encrypt-card</span>
             <span>Card encryption webhook (GET/POST)</span>
         </div>
         <div class="endpoint-item">
             <i class="fas fa-database"></i>
-            <span class="endpoint-url">http://localhost:8000/webhooks</span>
+            <span class="endpoint-url">https://eddy.io.vn/callback/webhooks</span>
             <span>JSON API - All webhooks</span>
         </div>
         """

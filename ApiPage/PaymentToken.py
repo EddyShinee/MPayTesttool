@@ -7,6 +7,8 @@ import base64
 import uuid
 import pyperclip
 import time
+import subprocess
+import platform
 from utils.EnvSelector import select_environment
 
 # Constants
@@ -19,6 +21,48 @@ PAYMENT_CHANNEL_OPTIONS = ["ALL", "CC", "IPP", "APM", "QR", "VNPAY", "MOMO", "ZA
 class PaymentTokenGenerator:
     def __init__(self):
         self.session_state = st.session_state
+
+    def copy_to_clipboard(self, text, label="text"):
+        """Copy text to clipboard with multiple fallback methods"""
+        success = False
+        error_msg = ""
+        
+        # Method 1: Try pyperclip first
+        try:
+            pyperclip.copy(text)
+            success = True
+        except Exception as e:
+            error_msg = f"pyperclip failed: {str(e)}"
+            
+            # Method 2: Try system clipboard commands
+            try:
+                if platform.system() == "Darwin":  # macOS
+                    process = subprocess.Popen(['pbcopy'], stdin=subprocess.PIPE)
+                    process.communicate(input=text.encode('utf-8'))
+                    success = True
+                elif platform.system() == "Windows":
+                    process = subprocess.Popen(['clip'], stdin=subprocess.PIPE)
+                    process.communicate(input=text.encode('utf-8'))
+                    success = True
+                elif platform.system() == "Linux":
+                    process = subprocess.Popen(['xclip', '-selection', 'clipboard'], stdin=subprocess.PIPE)
+                    process.communicate(input=text.encode('utf-8'))
+                    success = True
+            except Exception as e2:
+                error_msg = f"pyperclip failed: {str(e)}, system command failed: {str(e2)}"
+        
+        return success, error_msg
+
+    def create_copyable_text(self, text, label="text"):
+        """Create a copyable text widget using Streamlit's built-in functionality"""
+        # Use Streamlit's text_area with copy button
+        st.text_area(
+            f"📋 {label} (Click to copy):",
+            value=text,
+            height=100,
+            key=f"copyable_{label}_{int(time.time())}",
+            help="Click inside the text area and press Ctrl+C (Cmd+C on Mac) to copy"
+        )
 
     @staticmethod
     def generate_invoice_no():
@@ -467,7 +511,7 @@ class PaymentTokenGenerator:
                 'duration': total_elapsed
             }
 
-    def render_response_section(self):
+    def render_response_section(self, generator_instance=None):
         """Render response display section"""
         # Show last request summary if available
         if "last_request_result" in st.session_state:
@@ -485,11 +529,20 @@ class PaymentTokenGenerator:
             st.code(request_payload, language="text")
             # Copy button below JWT
             if st.button("📋 Copy JWT", key=f"{KEY_PREFIX}_copy_jwt"):
-                try:
-                    pyperclip.copy(request_payload)
+                success, error_msg = generator_instance.copy_to_clipboard(request_payload, "JWT") if generator_instance else (False, "Generator instance not available")
+                if success:
                     st.success("✅ JWT copied to clipboard!")
-                except:
-                    st.warning("⚠️ Cannot copy to clipboard. Manual copy needed")
+                else:
+                    st.error(f"❌ Failed to copy to clipboard: {error_msg}")
+                    st.warning("⚠️ Please copy the JWT manually from below:")
+                    # Add a note about clipboard permissions
+                    st.info("💡 **Note:** On macOS, you may need to grant clipboard access to your terminal/IDE in System Preferences > Security & Privacy > Privacy > Accessibility")
+            
+            # Always show copyable text area
+            if generator_instance:
+                generator_instance.create_copyable_text(request_payload, "JWT Token")
+            else:
+                st.code(request_payload, language="text")
 
         st.subheader("📥 API Response:")
         response_raw = self.session_state.get("response_payload", "")
@@ -513,12 +566,22 @@ class PaymentTokenGenerator:
 
                     if st.button("📋 Copy Payment Token", key=f"{KEY_PREFIX}_copy_token"):
                         payment_token = decoded_payload.get('paymentToken', 'Token not found')
-                        try:
-                            pyperclip.copy(payment_token)
+                        success, error_msg = generator_instance.copy_to_clipboard(payment_token, "Payment Token") if generator_instance else (False, "Generator instance not available")
+                        if success:
                             st.success("✅ Payment token copied to clipboard!")
-                        except:
-                            st.warning("⚠️ Cannot copy to clipboard. Please copy manually:")
-                            st.code(payment_token)
+                        else:
+                            st.error(f"❌ Failed to copy to clipboard: {error_msg}")
+                            st.warning("⚠️ Please copy the token manually from below:")
+                            # Add a note about clipboard permissions
+                            st.info("💡 **Note:** On macOS, you may need to grant clipboard access to your terminal/IDE in System Preferences > Security & Privacy > Privacy > Accessibility")
+                    
+                    # Always show copyable text area for payment token
+                    payment_token = decoded_payload.get('paymentToken', 'Token not found')
+                
+                    if generator_instance:
+                        generator_instance.create_copyable_text(payment_token, "Payment Token")
+                    else:
+                        st.code(payment_token, language="text")
             except:
                 st.info("💡 Unable to decode JWT response")
 
@@ -687,7 +750,7 @@ def render_payment_token():
 
     with col2_main:
         st.subheader("📊 Results")
-        generator.render_response_section()
+        generator.render_response_section(generator)
 
 
 if __name__ == "__main__":
