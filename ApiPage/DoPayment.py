@@ -67,6 +67,7 @@ def render_payment_information():
             customer_email = st.text_input("Customer Email", value="eddy.vu@2c2p.com", key="customer_email")
         with col_pi2:
             optional_fields = {}
+            st.markdown("IPP Payment")
             if st.checkbox("IPP Payment", key=f"{KEY_PREFIX}_checkbox_ippPayment"):
                 optional_fields['interestType'] = "Y"
                 optional_fields['installmentPeriod'] = st.text_input(
@@ -74,7 +75,13 @@ def render_payment_information():
                     key=f"{KEY_PREFIX}_installment_period"
                 )
             card_email = st.text_input("Card Email", value="eddy.vu@2c2p.com", key="card_email")
-
+            qr_type = st.selectbox(
+                "QR Type",
+                options=["", "RAW", "BASE64", "URL"],
+                index=1,
+                key=f"{KEY_PREFIX}_qrType"
+            )
+            optional_fields['qrType'] = qr_type
     # Build payment information JSON
     payment_data = {
         "name": customer_name,
