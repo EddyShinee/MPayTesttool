@@ -197,11 +197,9 @@ def process_request(form_data, api_url):
     # Show final status
     if error:
         status_placeholder.error("❌ **Request failed!**")
-        st.toast("Request failed!", icon="⚠️")
         st.error(error)
     else:
         status_placeholder.success("✅ **Request successful!**")
-        st.toast("Request sent successfully!", icon="✅")
     
     # Show detailed timing information
     with st.expander("⏱️ **Detailed Timing Information**", expanded=True):
