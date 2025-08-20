@@ -136,7 +136,7 @@ def process_request(form_data, api_url):
     
     # Show initial status
     status_placeholder.info("🚀 **Sending request...**")
-    st.toast("🚀 Starting request!", icon="🚀")
+    st.toast("Starting request!", icon="🚀")
     
     # Real-time timer function
     def update_timer():
