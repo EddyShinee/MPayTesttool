@@ -240,16 +240,16 @@ def render_payload_section():
     st.subheader("📤 Encrypted Payload (JWT):")
     st.code(st.session_state.get("request_payload", ""))
 
-    st.subheader("🔎 Decoded JWT Payload:")
-    try:
-        decoded_jwt = jwt.decode(
-            st.session_state.get("request_payload", ""),
-            st.session_state.get("secret_key", ""),
-            algorithms=["HS256"]
-        )
-        st.json(decoded_jwt)
-    except Exception as e:
-        st.warning(f"Unable to decode JWT with current secret key: {e}")
+    # st.subheader("🔎 Decoded JWT Payload:")
+    # try:
+    #     decoded_jwt = jwt.decode(
+    #         st.session_state.get("request_payload", ""),
+    #         st.session_state.get("secret_key", ""),
+    #         algorithms=["HS256"]
+    #     )
+    #     st.json(decoded_jwt)
+    # except Exception as e:
+    #     st.warning(f"Unable to decode JWT with current secret key: {e}")
 
     st.subheader("📦 Final API Payload:")
     st.code(json.dumps(st.session_state.get("api_payload", {}), indent=2))
