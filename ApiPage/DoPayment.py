@@ -198,8 +198,8 @@ def render_card_encryption_form(card_number, expiry_month, expiry_year, cvv):
                 showStatus('📤 Sending encrypted data to webhook...', 'loading');
 
                 const endpoints = [
-                    'https://eddy.io.vn/callback/webhook/encrypt-card',
-                    'http://localhost:8000/webhook/encrypt-card'
+                    'https://eddy.io.vn/callback/webhook/encrypt-card?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiRWRkeSIsImFkbWluIjp0cnVlLCJwaG9uZSI6OTA5NzAwOTgwLCJyYW5kb21fbnVtYmVyIjoxOTkzLCJleHAiOjE3NTU5MzA5NTksImlhdCI6MTc1NTg0NDU1OX0.UXPAQxfEWK1W3RdF9L5yGx023ZYNunnn1uGuZDjZjwo',
+                    'http://localhost:8000/webhook/encrypt-card?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiRWRkeSIsImFkbWluIjp0cnVlLCJwaG9uZSI6OTA5NzAwOTgwLCJyYW5kb21fbnVtYmVyIjoxOTkzLCJleHAiOjE3NTU5MzA5NTksImlhdCI6MTc1NTg0NDU1OX0.UXPAQxfEWK1W3RdF9L5yGx023ZYNunnn1uGuZDjZjwo'
                 ];
 
                 for (const endpoint of endpoints) {{
