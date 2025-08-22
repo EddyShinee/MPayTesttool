@@ -19,9 +19,9 @@ import traceback
 JWT_SECRET = "85C237EC4F47FBB2C56B988924786"
 EXPECTED_PAYLOAD = {
     "name": "Eddy",
-    "admin": True,
-    "phone": 909700980,
-    "random_number": 1993
+    "admin": "True",
+    "phone": "0909700980",
+    "random_number": "1993"
 }
 
 # Global storage for webhooks and security events
