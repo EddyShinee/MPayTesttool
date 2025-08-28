@@ -359,8 +359,13 @@ class PaymentTokenGenerator:
 
             if st.checkbox("Store Credentials", key=f"{KEY_PREFIX}_checkbox_storeCredentials"):
                 optional_fields['storeCredentials'] = st.selectbox(
-                    "Store Credentials", ["Y", "N"],
+                    "Store Credentials", ["F", "S", "N"],
                     key=f"{KEY_PREFIX}_store_credentials"
+                )
+            if st.checkbox("Transaction Initiator", key=f"{KEY_PREFIX}_checkbox_transactionInitiator"):
+                optional_fields['transactionInitiator'] = st.selectbox(
+                    "Transaction Initiator", ["C", "M"],
+                    key=f"{KEY_PREFIX}_transaction_initiator"
                 )
 
         with col2:
