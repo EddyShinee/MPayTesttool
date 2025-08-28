@@ -362,11 +362,24 @@ class PaymentTokenGenerator:
                     "Store Credentials", ["F", "S", "N"],
                     key=f"{KEY_PREFIX}_store_credentials"
                 )
-            if st.checkbox("Transaction Initiator", key=f"{KEY_PREFIX}_checkbox_transactionInitiator"):
-                optional_fields['transactionInitiator'] = st.selectbox(
-                    "Transaction Initiator", ["C", "M"],
-                    key=f"{KEY_PREFIX}_transaction_initiator"
-                )
+            if st.checkbox("Customer Address", key=f"{KEY_PREFIX}_checkbox_customerAddress"):
+                customer_address = {
+                    "billing": {
+                        "address1": "123 placeholder address",
+                        "city": "Ipoh",
+                        "countryCode": "MY",
+                        "postalCode": "50000"
+                            }
+                        }
+                # customer_address_json_raw = st_ace(
+                #     value=json.dumps(customer_address, indent=2),
+                #     language="json",
+                #     theme="chrome",
+                #     key="browser_json_editor",
+                #     height=200
+                # )
+
+                optional_fields['customerAddress'] = customer_address
 
         with col2:
             if st.checkbox("Promotion Code", key=f"{KEY_PREFIX}_checkbox_promotionCode"):
@@ -379,6 +392,11 @@ class PaymentTokenGenerator:
                 optional_fields['paymentRouteID'] = st.text_input(
                     "Payment Route ID",
                     key=f"{KEY_PREFIX}_payment_route_id"
+                )
+            if st.checkbox("Transaction Initiator", key=f"{KEY_PREFIX}_checkbox_transactionInitiator"):
+                optional_fields['transactionInitiator'] = st.selectbox(
+                    "Transaction Initiator", ["C", "M"],
+                    key=f"{KEY_PREFIX}_transaction_initiator"
                 )
 
         with col3:
