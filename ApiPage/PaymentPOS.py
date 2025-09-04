@@ -118,7 +118,7 @@ def create_api_payload(jwt_token, form_data):
 def send_api_request(api_url, api_payload):
     """Send the API request and return response"""
     try:
-        response = requests.post(api_url, json=api_payload, headers={"Content-Type": "application/json"})
+        response = requests.post(api_url, json=api_payload, headers={"Content-Type": "application/json"}, timeout=600)
         return response.text, None
     except Exception as e:
         return f"ERROR: {e}", str(e)
