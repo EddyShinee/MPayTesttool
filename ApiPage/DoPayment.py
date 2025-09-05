@@ -78,7 +78,7 @@ def render_payment_information():
             qr_type = st.selectbox(
                 "QR Type",
                 options=["", "RAW", "BASE64", "URL"],
-                index=1,
+                index=0,
                 key=f"{KEY_PREFIX}_qrType"
             )
             optional_fields['qrType'] = qr_type

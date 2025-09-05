@@ -187,7 +187,7 @@ class PaymentTokenGenerator:
                 if st.checkbox("Frontend Return URL", key=f"{KEY_PREFIX}_checkbox_frontendReturnUrl"):
                     optional_fields['frontendReturnUrl'] = st.text_input(
                         "Frontend Return URL",
-                        "https://eddy.io.vn/callback/webhook/callback-frontend?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiRWRkeSIsImFkbWluIjp0cnVlLCJwaG9uZSI6OTA5NzAwOTgwLCJyYW5kb21fbnVtYmVyIjoxOTkzLCJleHAiOjE3NTU5MzA5NTksImlhdCI6MTc1NTg0NDU1OX0.UXPAQxfEWK1W3RdF9L5yGx023ZYNunnn1uGuZDjZjwo",
+                        "https://eddy.io.vn/callback/webhook/callback-frontend",
                         key=f"{KEY_PREFIX}_frontend_return_url"
                     )
 
@@ -195,7 +195,7 @@ class PaymentTokenGenerator:
                 if st.checkbox("Backend Return URL", key=f"{KEY_PREFIX}_checkbox_backendReturnUrl"):
                     optional_fields['backendReturnUrl'] = st.text_input(
                         "Backend Return URL",
-                        "https://eddy.io.vn/callback/webhook/payment?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiRWRkeSIsImFkbWluIjp0cnVlLCJwaG9uZSI6OTA5NzAwOTgwLCJyYW5kb21fbnVtYmVyIjoxOTkzLCJleHAiOjE3NTU5MzA5NTksImlhdCI6MTc1NTg0NDU1OX0.UXPAQxfEWK1W3RdF9L5yGx023ZYNunnn1uGuZDjZjwo",
+                        "https://eddy.io.vn/callback/webhook/payment",
                         key=f"{KEY_PREFIX}_backend_return_url"
                     )
 

@@ -45,7 +45,7 @@ def select_environment(key_suffix="", default_urls=None, env_type="paymentToken"
             }
         elif env_type == "PaymentPOS":
             default_urls = {
-                "UAT / Sandbox": "https://sandbox-pgw.2c2p.com/pos/v4.4/order/create",
+                "UAT / Sandbox": "https://sandbox-posgw.2c2p.com/pos/4.4/order/create",
                 "Production": "https://posgw.2c2p.com/pos/4.4/order/create",
                 "MPay - Production": "https://posgw.m-pay.vn/pos/4.4/order/create"
             }
