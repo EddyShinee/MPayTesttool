@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import requests
 import json
 import datetime
@@ -184,7 +185,7 @@ class PaymentTokenGenerator:
             col1, col2 = st.columns(2)
 
             with col1:
-                if st.checkbox("Frontend Return URL", key=f"{KEY_PREFIX}_checkbox_frontendReturnUrl"):
+                if st.checkbox("Frontend Return URL", key=f"{KEY_PREFIX}_checkbox_frontendReturnUrl", value=True):
                     optional_fields['frontendReturnUrl'] = st.text_input(
                         "Frontend Return URL",
                         "https://eddy.io.vn/callback/webhook/callback-frontend",
@@ -192,7 +193,7 @@ class PaymentTokenGenerator:
                     )
 
             with col2:
-                if st.checkbox("Backend Return URL", key=f"{KEY_PREFIX}_checkbox_backendReturnUrl"):
+                if st.checkbox("Backend Return URL", key=f"{KEY_PREFIX}_checkbox_backendReturnUrl", value=True):
                     optional_fields['backendReturnUrl'] = st.text_input(
                         "Backend Return URL",
                         "https://eddy.io.vn/callback/webhook/payment",
@@ -534,6 +535,157 @@ class PaymentTokenGenerator:
                 'duration': total_elapsed
             }
 
+    @st.dialog("💳 2C2P Payment Gateway", width="large")
+    def show_payment_dialog(self, web_url):
+        """Show payment dialog with iframe"""
+        
+        # Add warning about potential iframe issues
+        st.warning("⚠️ **Note:** Some payment pages may not load in iframe due to security restrictions. If you see an error, use the 'Open in New Tab' button below.")
+        
+        # Create iframe with error handling
+        iframe_html = f"""
+        <div style="border: 2px solid #e0e0e0; border-radius: 8px; padding: 10px; background-color: #f9f9f9;">
+            <div id="iframeContainer">
+                <iframe 
+                    id="paymentIframe" 
+                    src="{web_url}" 
+                    width="100%" 
+                    height="600" 
+                    frameborder="0"
+                    style="border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
+                    onerror="handleIframeError()"
+                    onload="handleIframeLoad()">
+                </iframe>
+            </div>
+            <div id="iframeError" style="display: none; padding: 20px; text-align: center; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; margin-top: 10px;">
+                <h4 style="color: #721c24; margin: 0 0 10px 0;">❌ Iframe Loading Error</h4>
+                <p style="color: #721c24; margin: 0 0 15px 0;">The payment page cannot be displayed in iframe due to security restrictions (X-Frame-Options).</p>
+                <button onclick="openInNewTab()" style="background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-right: 10px;">🌐 Open in New Tab</button>
+                <button onclick="retryIframe()" style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">🔄 Retry</button>
+            </div>
+        </div>
+        
+        <script>
+            let iframeLoadTimeout;
+            
+            // Handle iframe load success
+            function handleIframeLoad() {{
+                console.log('Iframe loaded successfully');
+                clearTimeout(iframeLoadTimeout);
+                document.getElementById('iframeError').style.display = 'none';
+            }}
+            
+            // Handle iframe load error
+            function handleIframeError() {{
+                console.log('Iframe failed to load');
+                showIframeError();
+            }}
+            
+            // Show iframe error message
+            function showIframeError() {{
+                document.getElementById('iframeError').style.display = 'block';
+                document.getElementById('iframeContainer').style.display = 'none';
+            }}
+            
+            // Open payment URL in new tab
+            function openInNewTab() {{
+                window.open('{web_url}', '_blank');
+            }}
+            
+            // Retry loading iframe
+            function retryIframe() {{
+                const iframe = document.getElementById('paymentIframe');
+                const container = document.getElementById('iframeContainer');
+                const error = document.getElementById('iframeError');
+                
+                container.style.display = 'block';
+                error.style.display = 'none';
+                
+                // Reload iframe
+                iframe.src = iframe.src;
+                
+                // Set timeout to show error if still fails
+                iframeLoadTimeout = setTimeout(() => {{
+                    showIframeError();
+                }}, 5000);
+            }}
+            
+            // Set timeout to detect iframe loading issues
+            iframeLoadTimeout = setTimeout(() => {{
+                // Check if iframe is still loading or has errors
+                const iframe = document.getElementById('paymentIframe');
+                try {{
+                    // Try to access iframe content (will fail if X-Frame-Options blocks it)
+                    if (iframe.contentDocument || iframe.contentWindow) {{
+                        // Iframe loaded successfully
+                        return;
+                    }}
+                }} catch (e) {{
+                    // X-Frame-Options or other security error
+                    console.log('Iframe blocked by security policy:', e);
+                    showIframeError();
+                }}
+            }}, 3000);
+            
+            // Handle payment result messages from iframe
+            const handlePaymentPostMessages = (event) => {{
+                const {{ data }} = event;
+                if (data && data.paymentResult) {{
+                    const {{ respCode, respDesc, respData }} = data.paymentResult;
+                    
+                    // Display payment result
+                    const resultDiv = document.getElementById('paymentResult');
+                    if (resultDiv) {{
+                        resultDiv.innerHTML = `
+                            <div style="margin-top: 10px; padding: 10px; border-radius: 4px; background-color: ${{respCode === '2000' ? '#d4edda' : '#f8d7da'}}; border: 1px solid ${{respCode === '2000' ? '#c3e6cb' : '#f5c6cb'}};">
+                                <strong>Payment Result:</strong><br/>
+                                <strong>Code:</strong> ${{respCode}}<br/>
+                                <strong>Description:</strong> ${{respDesc}}<br/>
+                                ${{respData ? `<strong>Data:</strong> ${{respData}}<br/>` : ''}}
+                            </div>
+                        `;
+                    }}
+                    
+                    // Handle specific response codes
+                    if (respCode === '2000') {{
+                        //alert("🎉 Payment completed successfully!");
+                    }} else if (respCode === '1001') {{
+                        // alert("🔄 Redirect to continue payment: " + respData);
+                    }} else {{
+                        // alert("⚠️ Payment result: " + respCode + " - " + respDesc);
+                    }}
+                }}
+            }};
+            
+            // Subscribe to post messages
+            window.addEventListener('message', handlePaymentPostMessages);
+            
+            // Function to trigger payment submission from parent page
+            function triggerSubmitPayment() {{
+                const iframe = document.getElementById('paymentIframe');
+                if (iframe && iframe.contentWindow) {{
+                    iframe.contentWindow.postMessage('submit_gcard', '*');
+                }}
+            }}
+        </script>
+        
+        <div id="paymentResult"></div>
+        """
+        
+        st.components.v1.html(iframe_html, height=700)
+        
+        # Add fallback buttons
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("🌐 Open in New Tab", key=f"{KEY_PREFIX}_open_new_tab"):
+                st.markdown(f"[Click here to open payment page]({web_url})")
+        with col2:
+            if st.button("💳 Submit Payment", key=f"{KEY_PREFIX}_submit_payment"):
+                st.info("💡 Use the 'Submit Payment' button inside the iframe above")
+        with col3:
+            if st.button("🔄 Refresh Dialog", key=f"{KEY_PREFIX}_refresh_dialog"):
+                st.rerun()
+
     def render_response_section(self, generator_instance=None):
         """Render response display section"""
         # Show last request summary if available
@@ -583,9 +735,13 @@ class PaymentTokenGenerator:
                     # Action buttons - stacked vertically instead of columns
                     web_url = decoded_payload.get('webPaymentUrl')
                     if web_url:
-                        st.markdown(f"[🌐 Open Payment URL]({web_url})")
-                        st.markdown(f"[🌐 Open Webhook URL](https://eddy.io.vn/callback/)")
-
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.markdown(f"[🌐 Open Payment URL]({web_url})")
+                            st.markdown(f"[🌐 Open Webhook URL](https://eddy.io.vn/callback/)")
+                        with col2:
+                            if st.button("🖼️ Open Payment Dialog", key=f"{KEY_PREFIX}_open_dialog"):
+                                self.show_payment_dialog(web_url)
 
                     if st.button("📋 Copy Payment Token", key=f"{KEY_PREFIX}_copy_token"):
                         payment_token = decoded_payload.get('paymentToken', 'Token not found')
@@ -597,14 +753,14 @@ class PaymentTokenGenerator:
                             st.warning("⚠️ Please copy the token manually from below:")
                             # Add a note about clipboard permissions
                             st.info("💡 **Note:** On macOS, you may need to grant clipboard access to your terminal/IDE in System Preferences > Security & Privacy > Privacy > Accessibility")
+                        
+                        # Always show copyable text area for payment token
+                        payment_token = decoded_payload.get('paymentToken', 'Token not found')
                     
-                    # Always show copyable text area for payment token
-                    payment_token = decoded_payload.get('paymentToken', 'Token not found')
-                
-                    if generator_instance:
-                        generator_instance.create_copyable_text(payment_token, "Payment Token")
-                    else:
-                        st.code(payment_token, language="text")
+                        if generator_instance:
+                            generator_instance.create_copyable_text(payment_token, "Payment Token")
+                        else:
+                            st.code(payment_token, language="text")
             except:
                 st.info("💡 Unable to decode JWT response")
 
