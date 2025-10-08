@@ -29,7 +29,11 @@ def render_payment_inquiry():
                 st.session_state.invoice_no = "254b77aabc"
         invoice_no = st.text_input("🧾 Invoice No", value=st.session_state.invoice_no, key="invoice_no")
         locale = st.text_input("🌍 Locale", "en")
-        secret_key = st.text_input("🔑 Merchant SHA Key", type="password", placeholder="Enter your secret key", key=f"{KEY_PREFIX}_secret_key_token")
+        # Initialize secret_key in session state with default value
+        if f"{KEY_PREFIX}_secret_key_token" not in st.session_state:
+            st.session_state[f"{KEY_PREFIX}_secret_key_token"] = "0A85F7ED911FD69D3316ECDF20FCA4E138E590E7EF5D93009FEF1BEC5B2FF13F"
+        
+        secret_key = st.text_input("🔑 Merchant SHA Key", type="password", value=st.session_state[f"{KEY_PREFIX}_secret_key_token"], key=f"{KEY_PREFIX}_secret_key_token")
 
         if st.button("🚀 Send Request"):
             payload = {
