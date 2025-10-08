@@ -7,7 +7,8 @@ def render_payment_inquiry():
     from streamlit_ace import st_ace
     import uuid
 
-    KEY_PREFIX = str(uuid.uuid4())[:8]
+    # Use a fixed key prefix to maintain session state consistency
+    KEY_PREFIX = "payment_inquiry"
 
     st.title("🧾 Payment Inquiry")
     from utils.EnvSelector import select_environment
