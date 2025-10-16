@@ -455,7 +455,7 @@ class PaymentTokenGenerator:
                 api_url,
                 json={"payload": jwt_token},
                 headers={"Content-Type": "application/json"},
-                timeout=30
+                timeout=300
             )
 
             # Step 4: Processing response (80% progress)
