@@ -270,6 +270,42 @@ class PaymentTokenGenerator:
                         key=f"{KEY_PREFIX}_tokenize_only"
                     )
 
+            # 3DS Configuration Block
+            st.subheader("🎫 3DS Configuration")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if st.checkbox("Protocol Version", key=f"{KEY_PREFIX}_checkbox_protocol_version"):
+                    optional_fields['protocolVersion'] = st.text_input(
+                        "Protocol Version",
+                        value="2.1.0",
+                        help="Default: 2.1.0",
+                        key=f"{KEY_PREFIX}_protocol_version"
+                    )
+                    
+                if st.checkbox("ECI", key=f"{KEY_PREFIX}_checkbox_eci"):
+                    optional_fields['eci'] = st.selectbox(
+                        "ECI",
+                        options=["", "00", "01", "02", "05", "06", "07", "80", "81", "82", "83"],
+                        help="Length: 2 characters",
+                        key=f"{KEY_PREFIX}_eci"
+                    )
+            
+            with col2:
+                if st.checkbox("CAVV", key=f"{KEY_PREFIX}_checkbox_cavv"):
+                    optional_fields['cavv'] = st.text_input(
+                        "CAVV",
+                        help="Length: 40 characters",
+                        key=f"{KEY_PREFIX}_cavv"
+                    )
+                    
+                if st.checkbox("DS Transaction ID", key=f"{KEY_PREFIX}_checkbox_ds_transaction_id"):
+                    optional_fields['dsTransactionId'] = st.text_input(
+                        "DS Transaction ID",
+                        help="Length: 36 characters (GUID)",
+                        key=f"{KEY_PREFIX}_ds_transaction_id"
+                    )
+
             # Installment & Recurring fields (moved from nested expander)
             st.subheader("💰 Installment & Recurring")
             self._render_installment_fields(optional_fields)
