@@ -12,6 +12,7 @@ api_list = [
     "Transaction Status Inquiry",
     "Payment Inquiry",
     "Payment POS",
+    "Analysist",
     # "Webhook Receiver"
     # "Initialization",
     # "User Preference",
