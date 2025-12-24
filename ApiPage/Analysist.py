@@ -163,7 +163,7 @@ def render_analysist():
                         headers=headers,
                         cookies=cookies,
                         data='',
-                        timeout=60
+                        timeout=120
                     )
                     elapsed = round(time.time() - start_time, 2)
                     
@@ -180,7 +180,7 @@ def render_analysist():
                         st.toast(f"❌ Request failed", icon="❌")
                         
             except requests.exceptions.Timeout:
-                st.error("❌ Request timeout (60s)")
+                st.error("❌ Request timeout (120s)")
             except requests.exceptions.ConnectionError:
                 st.error("❌ Connection error. Please check your network.")
             except Exception as e:
@@ -547,6 +547,240 @@ def render_analysist():
                             with st.expander("📋 View Data Table"):
                                 pivot_rate = rate_data.pivot(index=group_col_rate, columns='Status', values='Rate (%)').fillna(0)
                                 st.dataframe(pivot_rate, use_container_width=True)
+                            
+                            # ========== Success Rate Analysis ==========
+                            st.markdown("---")
+                            st.header("✅ Success Rate Analysis")
+                            
+                            # Time filter selection for Success Rate
+                            time_filter_type_sr = st.radio(
+                                "Select Time Filter",
+                                ["Day", "Hour", "Minute"],
+                                horizontal=True,
+                                key="time_filter_sr"
+                            )
+                            
+                            # Reload button
+                            st.button("🔄 Reload Chart", key="reload_sr", help="Click to refresh the chart")
+                            
+                            # Group by selected time filter
+                            if time_filter_type_sr == "Day":
+                                df_sr = df.copy()
+                                df_sr['DateStr'] = df_sr['ParsedDateTime'].dt.strftime('%Y-%m-%d')
+                                group_col_sr = 'DateStr'
+                                x_label_sr = 'Date'
+                            elif time_filter_type_sr == "Hour":
+                                df_sr = df.copy()
+                                df_sr['DateHour'] = df_sr['ParsedDateTime'].dt.strftime('%Y-%m-%d %H:00')
+                                group_col_sr = 'DateHour'
+                                x_label_sr = 'Date-Hour'
+                            else:
+                                df_sr = df.copy()
+                                df_sr['DateMinute'] = df_sr['ParsedDateTime'].dt.strftime('%Y-%m-%d %H:%M')
+                                group_col_sr = 'DateMinute'
+                                x_label_sr = 'Date-Time (Minute)'
+                            
+                            # Calculate Success Rate
+                            # SR Count = Approved + Settled
+                            # SR Rate = (Approved + Settled) / (Approved + Settled + Rejected + Payment Expired)
+                            
+                            # Count by status and time
+                            sr_status_counts = df_sr.groupby([group_col_sr, 'Status']).size().reset_index(name='Count')
+                            
+                            # Get all unique time buckets and sort them
+                            time_buckets = sorted(df_sr[group_col_sr].unique())
+                            
+                            # Calculate SR Count and SR Rate for each time bucket
+                            sr_data_list = []
+                            for time_bucket in time_buckets:
+                                time_data = sr_status_counts[sr_status_counts[group_col_sr] == time_bucket]
+                                
+                                # Get counts for each status (default to 0 if not found)
+                                approved = int(time_data[time_data['Status'] == 'Approved']['Count'].sum()) if len(time_data[time_data['Status'] == 'Approved']) > 0 else 0
+                                settled = int(time_data[time_data['Status'] == 'Settled']['Count'].sum()) if len(time_data[time_data['Status'] == 'Settled']) > 0 else 0
+                                rejected = int(time_data[time_data['Status'] == 'Rejected']['Count'].sum()) if len(time_data[time_data['Status'] == 'Rejected']) > 0 else 0
+                                payment_expired = int(time_data[time_data['Status'] == 'Payment Expired']['Count'].sum()) if len(time_data[time_data['Status'] == 'Payment Expired']) > 0 else 0
+                                
+                                # Calculate SR Count
+                                sr_count = approved + settled
+                                
+                                # Calculate SR Rate
+                                denominator = approved + settled + rejected + payment_expired
+                                if denominator > 0:
+                                    sr_rate = round((sr_count / denominator * 100), 2)
+                                else:
+                                    sr_rate = 0.0
+                                
+                                sr_data_list.append({
+                                    group_col_sr: time_bucket,
+                                    'SR Count': sr_count,
+                                    'SR Rate (%)': sr_rate
+                                })
+                            
+                            sr_data = pd.DataFrame(sr_data_list)
+                            # Ensure proper sorting
+                            sr_data = sr_data.sort_values(group_col_sr)
+                            
+                            # Debug: Show calculation details
+                            with st.expander("🔍 Debug: SR Calculation Details", expanded=False):
+                                st.write("**Status counts by time bucket:**")
+                                st.dataframe(sr_status_counts, use_container_width=True)
+                                st.write("**Calculated SR data:**")
+                                st.dataframe(sr_data, use_container_width=True)
+                            
+                            # 1. Success Rate Count - Line Chart
+                            st.subheader("📊 Success Rate Count")
+                            fig_sr_count_line = px.line(
+                                sr_data,
+                                x=group_col_sr,
+                                y='SR Count',
+                                title=f'Success Rate Count ({time_filter_type_sr}) - Line Chart',
+                                labels={group_col_sr: x_label_sr, 'SR Count': 'Success Rate Count (Approved + Settled)'},
+                                markers=True,
+                                color_discrete_sequence=['#2E86AB']  # Blue color for Count
+                            )
+                            hovertemplate_sr_count_line = f"{x_label_sr}: %{{x}}<br>SR Count: %{{y}}<extra></extra>"
+                            fig_sr_count_line.update_traces(
+                                hovertemplate=hovertemplate_sr_count_line,
+                                line_color='#2E86AB',
+                                marker_color='#2E86AB'
+                            )
+                            fig_sr_count_line.update_layout(
+                                xaxis_title=x_label_sr,
+                                yaxis_title='Success Rate Count',
+                                height=400,
+                                showlegend=False
+                            )
+                            st.plotly_chart(fig_sr_count_line, use_container_width=True)
+                            
+                            # 2. Success Rate Count - Stacked Area Chart
+                            fig_sr_count_area = px.area(
+                                sr_data,
+                                x=group_col_sr,
+                                y='SR Count',
+                                title=f'Success Rate Count ({time_filter_type_sr}) - Stacked Area',
+                                labels={group_col_sr: x_label_sr, 'SR Count': 'Success Rate Count (Approved + Settled)'},
+                                color_discrete_sequence=['#2E86AB']  # Blue color for Count
+                            )
+                            hovertemplate_sr_count_area = f"{x_label_sr}: %{{x}}<br>SR Count: %{{y}}<extra></extra>"
+                            fig_sr_count_area.update_traces(
+                                hovertemplate=hovertemplate_sr_count_area,
+                                mode='lines',
+                                fillcolor='rgba(46, 134, 171, 0.6)',  # Blue with transparency
+                                line_color='#2E86AB'
+                            )
+                            fig_sr_count_area.update_layout(
+                                xaxis_title=x_label_sr,
+                                yaxis_title='Success Rate Count',
+                                height=400,
+                                showlegend=False
+                            )
+                            st.plotly_chart(fig_sr_count_area, use_container_width=True)
+                            
+                            # 3. Success Rate Count - Bar Chart
+                            fig_sr_count_bar = px.bar(
+                                sr_data,
+                                x=group_col_sr,
+                                y='SR Count',
+                                title=f'Success Rate Count ({time_filter_type_sr}) - Bar Chart',
+                                labels={group_col_sr: x_label_sr, 'SR Count': 'Success Rate Count (Approved + Settled)'},
+                                text='SR Count',
+                                color_discrete_sequence=['#2E86AB']  # Blue color for Count
+                            )
+                            hovertemplate_sr_count_bar = f"{x_label_sr}: %{{x}}<br>SR Count: %{{y}}<extra></extra>"
+                            fig_sr_count_bar.update_traces(
+                                textposition='outside',
+                                hovertemplate=hovertemplate_sr_count_bar,
+                                marker_color='#2E86AB'
+                            )
+                            fig_sr_count_bar.update_layout(
+                                xaxis_title=x_label_sr,
+                                yaxis_title='Success Rate Count',
+                                height=400,
+                                showlegend=False
+                            )
+                            st.plotly_chart(fig_sr_count_bar, use_container_width=True)
+                            
+                            # 4. Success Rate Percentage - Line Chart
+                            st.subheader("📈 Success Rate Percentage")
+                            fig_sr_rate_line = px.line(
+                                sr_data,
+                                x=group_col_sr,
+                                y='SR Rate (%)',
+                                title=f'Success Rate Percentage ({time_filter_type_sr}) - Line Chart',
+                                labels={group_col_sr: x_label_sr, 'SR Rate (%)': 'Success Rate (%)'},
+                                markers=True,
+                                color_discrete_sequence=['#F77F00']  # Orange color for Rate
+                            )
+                            hovertemplate_sr_rate_line = f"{x_label_sr}: %{{x}}<br>SR Rate: %{{y}}%<extra></extra>"
+                            fig_sr_rate_line.update_traces(
+                                hovertemplate=hovertemplate_sr_rate_line,
+                                line_color='#F77F00',
+                                marker_color='#F77F00'
+                            )
+                            fig_sr_rate_line.update_layout(
+                                xaxis_title=x_label_sr,
+                                yaxis_title='Success Rate (%)',
+                                height=400,
+                                showlegend=False,
+                                yaxis=dict(range=[0, 100])
+                            )
+                            st.plotly_chart(fig_sr_rate_line, use_container_width=True)
+                            
+                            # 5. Success Rate Percentage - Stacked Area Chart
+                            fig_sr_rate_area = px.area(
+                                sr_data,
+                                x=group_col_sr,
+                                y='SR Rate (%)',
+                                title=f'Success Rate Percentage ({time_filter_type_sr}) - Stacked Area',
+                                labels={group_col_sr: x_label_sr, 'SR Rate (%)': 'Success Rate (%)'},
+                                color_discrete_sequence=['#F77F00']  # Orange color for Rate
+                            )
+                            hovertemplate_sr_rate_area = f"{x_label_sr}: %{{x}}<br>SR Rate: %{{y}}%<extra></extra>"
+                            fig_sr_rate_area.update_traces(
+                                hovertemplate=hovertemplate_sr_rate_area,
+                                mode='lines',
+                                fillcolor='rgba(247, 127, 0, 0.6)',  # Orange with transparency
+                                line_color='#F77F00'
+                            )
+                            fig_sr_rate_area.update_layout(
+                                xaxis_title=x_label_sr,
+                                yaxis_title='Success Rate (%)',
+                                height=400,
+                                showlegend=False,
+                                yaxis=dict(range=[0, 100])
+                            )
+                            st.plotly_chart(fig_sr_rate_area, use_container_width=True)
+                            
+                            # 6. Success Rate Percentage - Bar Chart
+                            fig_sr_rate_bar = px.bar(
+                                sr_data,
+                                x=group_col_sr,
+                                y='SR Rate (%)',
+                                title=f'Success Rate Percentage ({time_filter_type_sr}) - Bar Chart',
+                                labels={group_col_sr: x_label_sr, 'SR Rate (%)': 'Success Rate (%)'},
+                                text='SR Rate (%)',
+                                color_discrete_sequence=['#F77F00']  # Orange color for Rate
+                            )
+                            hovertemplate_sr_rate_bar = f"{x_label_sr}: %{{x}}<br>SR Rate: %{{y}}%<extra></extra>"
+                            fig_sr_rate_bar.update_traces(
+                                texttemplate='%{text:.1f}%',
+                                textposition='outside',
+                                hovertemplate=hovertemplate_sr_rate_bar,
+                                marker_color='#F77F00'
+                            )
+                            fig_sr_rate_bar.update_layout(
+                                xaxis_title=x_label_sr,
+                                yaxis_title='Success Rate (%)',
+                                height=400,
+                                showlegend=False,
+                                yaxis=dict(range=[0, 100])
+                            )
+                            st.plotly_chart(fig_sr_rate_bar, use_container_width=True)
+                            
+                            # Show data table
+                            with st.expander("📋 View Success Rate Data Table"):
+                                st.dataframe(sr_data, use_container_width=True)
                         else:
                             st.warning("⚠️ Status column not found. Cannot generate status-based charts.")
                     else:
