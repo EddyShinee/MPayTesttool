@@ -213,7 +213,7 @@ class PaymentTokenGenerator:
 
                 if st.checkbox("Request 3DS", key=f"{KEY_PREFIX}_checkbox_request3DS"):
                     optional_fields['request3DS'] = st.selectbox(
-                        "Request 3DS", ["Y", "N"],
+                        "Request 3DS", ["Y", "N", "F"],
                         key=f"{KEY_PREFIX}_request3ds"
                     )
 

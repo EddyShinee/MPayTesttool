@@ -685,7 +685,7 @@ def render_analysist():
                                 title=f'Success Rate Count ({time_filter_type_sr}) - Bar Chart',
                                 labels={group_col_sr: x_label_sr, 'SR Count': 'Success Rate Count (Approved + Settled)'},
                                 text='SR Count',
-                                color_discrete_sequence=['#2E86AB']  # Blue color for Count
+                                color_discrete_sequence=['#f54290']  # Blue color for Count
                             )
                             hovertemplate_sr_count_bar = f"{x_label_sr}: %{{x}}<br>SR Count: %{{y}}<extra></extra>"
                             fig_sr_count_bar.update_traces(
