@@ -122,12 +122,17 @@ def render_analysist():
     col1, col2 = st.columns([1, 1])
     
     with col1:
-        default_url = "https://my.2c2p.com/2.0/Transaction/PrintSearchTransactionV2"
-        api_url = st.text_input(
-            "🌐 API URL",
-            value=default_url,
-            help="Enter the API endpoint URL"
+        api_options = {
+            "2C2P (Global)": "https://my.2c2p.com/2.0/Transaction/PrintSearchTransactionV2",
+            "M-Pay": "https://my.m-pay.vn/2.0/Transaction/PrintSearchTransactionV2"
+        }
+        selected_api = st.selectbox(
+            "Selection",
+            options=list(api_options.keys()),
+            index=0,
+            help="Select the API endpoint URL"
         )
+        api_url = api_options[selected_api]
     
     with col2:
         session_id = st.text_input(
