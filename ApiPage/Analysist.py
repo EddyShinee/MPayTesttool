@@ -350,80 +350,82 @@ def render_analysist():
                             # Count by status and time bucket
                             count_data = df_group.groupby([group_col, 'Status']).size().reset_index(name='Count')
                             
-                            # Create bar chart with value labels on each column
-                            fig_count = px.bar(
-                                count_data,
-                                x=group_col,
-                                y='Count',
-                                color='Status',
-                                title=f'Number of Transactions by Status ({time_filter_type})',
-                                labels={group_col: x_label, 'Count': 'Number of Transactions'},
-                                barmode='group',
-                                text='Count',
+                            # Select chart type (optimize by rendering only one chart)
+                            chart_type_count = st.radio(
+                                "Chart Type (Transactions by Status)",
+                                ["Bar", "Line", "Area"],
+                                horizontal=True,
+                                key="chart_type_count"
                             )
-                            # Always show the full time bucket on x-axis (Date / Date-Hour / Date-Minute)
-                            # Use fullData.name to get the Status name from the trace
-                            hovertemplate = f"{x_label}: %{{x}}<br>Status: %{{fullData.name}}<br>Count: %{{y}}<extra></extra>"
                             
-                            fig_count.update_traces(
-                                textposition='outside',
-                                hovertemplate=hovertemplate,
-                            )
-                            fig_count.update_layout(
-                                xaxis_title=x_label,
-                                yaxis_title='Number of Transactions',
-                                height=500,
-                                showlegend=True,
-                                uniformtext_minsize=10,
-                                uniformtext_mode='hide',
-                            )
-                            st.plotly_chart(fig_count, use_container_width=True)
+                            hovertemplate_base = f"{x_label}: %{{x}}<br>Status: %{{fullData.name}}<br>Count: %{{y}}<extra></extra>"
                             
-                            # Create line chart for Number of Transactions by Status
-                            fig_count_line = px.line(
-                                count_data,
-                                x=group_col,
-                                y='Count',
-                                color='Status',
-                                title=f'Number of Transactions by Status ({time_filter_type}) - Line Chart',
-                                labels={group_col: x_label, 'Count': 'Number of Transactions'},
-                                markers=True
-                            )
-                            hovertemplate_line_count = f"{x_label}: %{{x}}<br>Status: %{{fullData.name}}<br>Count: %{{y}}<extra></extra>"
+                            if chart_type_count == "Bar":
+                                fig_count = px.bar(
+                                    count_data,
+                                    x=group_col,
+                                    y='Count',
+                                    color='Status',
+                                    title=f'Number of Transactions by Status ({time_filter_type})',
+                                    labels={group_col: x_label, 'Count': 'Number of Transactions'},
+                                    barmode='group',
+                                    text='Count',
+                                )
+                                fig_count.update_traces(
+                                    textposition='outside',
+                                    hovertemplate=hovertemplate_base,
+                                )
+                                fig_count.update_layout(
+                                    xaxis_title=x_label,
+                                    yaxis_title='Number of Transactions',
+                                    height=500,
+                                    showlegend=True,
+                                    uniformtext_minsize=10,
+                                    uniformtext_mode='hide',
+                                )
+                                st.plotly_chart(fig_count, use_container_width=True)
                             
-                            fig_count_line.update_traces(
-                                hovertemplate=hovertemplate_line_count
-                            )
-                            fig_count_line.update_layout(
-                                xaxis_title=x_label,
-                                yaxis_title='Number of Transactions',
-                                height=500,
-                                showlegend=True
-                            )
-                            st.plotly_chart(fig_count_line, use_container_width=True)
-
-                            # Create stacked area chart for Number of Transactions by Status
-                            fig_count_area = px.area(
-                                count_data,
-                                x=group_col,
-                                y='Count',
-                                color='Status',
-                                title=f'Number of Transactions by Status ({time_filter_type}) - Stacked Area',
-                                labels={group_col: x_label, 'Count': 'Number of Transactions'},
-                            )
-                            hovertemplate_area_count = f"{x_label}: %{{x}}<br>Status: %{{fullData.name}}<br>Count: %{{y}}<extra></extra>"
+                            elif chart_type_count == "Line":
+                                fig_count_line = px.line(
+                                    count_data,
+                                    x=group_col,
+                                    y='Count',
+                                    color='Status',
+                                    title=f'Number of Transactions by Status ({time_filter_type})',
+                                    labels={group_col: x_label, 'Count': 'Number of Transactions'},
+                                    markers=True
+                                )
+                                fig_count_line.update_traces(
+                                    hovertemplate=hovertemplate_base
+                                )
+                                fig_count_line.update_layout(
+                                    xaxis_title=x_label,
+                                    yaxis_title='Number of Transactions',
+                                    height=500,
+                                    showlegend=True
+                                )
+                                st.plotly_chart(fig_count_line, use_container_width=True)
                             
-                            fig_count_area.update_traces(
-                                hovertemplate=hovertemplate_area_count,
-                                mode='lines',
-                            )
-                            fig_count_area.update_layout(
-                                xaxis_title=x_label,
-                                yaxis_title='Number of Transactions',
-                                height=500,
-                                showlegend=True,
-                            )
-                            st.plotly_chart(fig_count_area, use_container_width=True)
+                            else:  # Area
+                                fig_count_area = px.area(
+                                    count_data,
+                                    x=group_col,
+                                    y='Count',
+                                    color='Status',
+                                    title=f'Number of Transactions by Status ({time_filter_type})',
+                                    labels={group_col: x_label, 'Count': 'Number of Transactions'},
+                                )
+                                fig_count_area.update_traces(
+                                    hovertemplate=hovertemplate_base,
+                                    mode='lines',
+                                )
+                                fig_count_area.update_layout(
+                                    xaxis_title=x_label,
+                                    yaxis_title='Number of Transactions',
+                                    height=500,
+                                    showlegend=True,
+                                )
+                                st.plotly_chart(fig_count_area, use_container_width=True)
                             
                             # Show data table
                             with st.expander("📋 View Data Table"):
@@ -472,86 +474,256 @@ def render_analysist():
                             rate_data = status_by_time.merge(total_by_time, on=group_col_rate)
                             rate_data['Rate (%)'] = (rate_data['Count'] / rate_data['Total'] * 100).round(2)
                             
-                            # Create stacked bar chart for rates
-                            fig_rate = px.bar(
-                                rate_data,
-                                x=group_col_rate,
-                                y='Rate (%)',
-                                color='Status',
-                                title=f'Payment Rate by Status ({time_filter_type_rate}) - Stacked',
-                                labels={group_col_rate: x_label_rate, 'Rate (%)': 'Rate (%)'},
-                                barmode='stack',
-                                text='Rate (%)'
+                            # Select chart type (only render one chart)
+                            chart_type_rate = st.radio(
+                                "Chart Type (Payment Rate by Status)",
+                                ["Bar", "Line", "Area"],
+                                horizontal=True,
+                                key="chart_type_rate"
                             )
-                            # Format hovertemplate to show Status name correctly
-                            hovertemplate_rate = f"{x_label_rate}: %{{x}}<br>Status: %{{fullData.name}}<br>Rate: %{{y}}%<extra></extra>"
                             
-                            fig_rate.update_traces(
-                                texttemplate='%{text:.1f}%',
-                                textposition='inside',
-                                hovertemplate=hovertemplate_rate
-                            )
-                            fig_rate.update_layout(
-                                xaxis_title=x_label_rate,
-                                yaxis_title='Rate (%)',
-                                height=500,
-                                showlegend=True,
-                                yaxis=dict(range=[0, 100])
-                            )
-                            st.plotly_chart(fig_rate, use_container_width=True)
+                            hovertemplate_rate_base = f"{x_label_rate}: %{{x}}<br>Status: %{{fullData.name}}<br>Rate: %{{y}}%<extra></extra>"
                             
-                            # Create line chart for Payment Rate by Status
-                            fig_rate_line = px.line(
-                                rate_data,
-                                x=group_col_rate,
-                                y='Rate (%)',
-                                color='Status',
-                                title=f'Payment Rate by Status ({time_filter_type_rate}) - Line Chart',
-                                labels={group_col_rate: x_label_rate, 'Rate (%)': 'Rate (%)'},
-                                markers=True
-                            )
-                            hovertemplate_line_rate = f"{x_label_rate}: %{{x}}<br>Status: %{{fullData.name}}<br>Rate: %{{y}}%<extra></extra>"
+                            if chart_type_rate == "Bar":
+                                fig_rate = px.bar(
+                                    rate_data,
+                                    x=group_col_rate,
+                                    y='Rate (%)',
+                                    color='Status',
+                                    title=f'Payment Rate by Status ({time_filter_type_rate})',
+                                    labels={group_col_rate: x_label_rate, 'Rate (%)': 'Rate (%)'},
+                                    barmode='stack',
+                                    text='Rate (%)'
+                                )
+                                fig_rate.update_traces(
+                                    texttemplate='%{text:.1f}%',
+                                    textposition='inside',
+                                    hovertemplate=hovertemplate_rate_base
+                                )
+                                fig_rate.update_layout(
+                                    xaxis_title=x_label_rate,
+                                    yaxis_title='Rate (%)',
+                                    height=500,
+                                    showlegend=True,
+                                    yaxis=dict(range=[0, 100])
+                                )
+                                st.plotly_chart(fig_rate, use_container_width=True)
                             
-                            fig_rate_line.update_traces(
-                                hovertemplate=hovertemplate_line_rate
-                            )
-                            fig_rate_line.update_layout(
-                                xaxis_title=x_label_rate,
-                                yaxis_title='Rate (%)',
-                                height=500,
-                                showlegend=True,
-                                yaxis=dict(range=[0, 100])
-                            )
-                            st.plotly_chart(fig_rate_line, use_container_width=True)
+                            elif chart_type_rate == "Line":
+                                fig_rate_line = px.line(
+                                    rate_data,
+                                    x=group_col_rate,
+                                    y='Rate (%)',
+                                    color='Status',
+                                    title=f'Payment Rate by Status ({time_filter_type_rate})',
+                                    labels={group_col_rate: x_label_rate, 'Rate (%)': 'Rate (%)'},
+                                    markers=True
+                                )
+                                fig_rate_line.update_traces(
+                                    hovertemplate=hovertemplate_rate_base
+                                )
+                                fig_rate_line.update_layout(
+                                    xaxis_title=x_label_rate,
+                                    yaxis_title='Rate (%)',
+                                    height=500,
+                                    showlegend=True,
+                                    yaxis=dict(range=[0, 100])
+                                )
+                                st.plotly_chart(fig_rate_line, use_container_width=True)
 
-                            # Create stacked area chart for Payment Rate by Status
-                            fig_rate_area = px.area(
-                                rate_data,
-                                x=group_col_rate,
-                                y='Rate (%)',
-                                color='Status',
-                                title=f'Payment Rate by Status ({time_filter_type_rate}) - Stacked Area',
-                                labels={group_col_rate: x_label_rate, 'Rate (%)': 'Rate (%)'},
-                            )
-                            hovertemplate_area_rate = f"{x_label_rate}: %{{x}}<br>Status: %{{fullData.name}}<br>Rate: %{{y}}%<extra></extra>"
-                            
-                            fig_rate_area.update_traces(
-                                hovertemplate=hovertemplate_area_rate,
-                                mode='lines',
-                            )
-                            fig_rate_area.update_layout(
-                                xaxis_title=x_label_rate,
-                                yaxis_title='Rate (%)',
-                                height=500,
-                                showlegend=True,
-                                yaxis=dict(range=[0, 100]),
-                            )
-                            st.plotly_chart(fig_rate_area, use_container_width=True)
+                            else:  # Area
+                                fig_rate_area = px.area(
+                                    rate_data,
+                                    x=group_col_rate,
+                                    y='Rate (%)',
+                                    color='Status',
+                                    title=f'Payment Rate by Status ({time_filter_type_rate})',
+                                    labels={group_col_rate: x_label_rate, 'Rate (%)': 'Rate (%)'},
+                                )
+                                fig_rate_area.update_traces(
+                                    hovertemplate=hovertemplate_rate_base,
+                                    mode='lines',
+                                )
+                                fig_rate_area.update_layout(
+                                    xaxis_title=x_label_rate,
+                                    yaxis_title='Rate (%)',
+                                    height=500,
+                                    showlegend=True,
+                                    yaxis=dict(range=[0, 100]),
+                                )
+                                st.plotly_chart(fig_rate_area, use_container_width=True)
                             
                             # Show data table
                             with st.expander("📋 View Data Table"):
                                 pivot_rate = rate_data.pivot(index=group_col_rate, columns='Status', values='Rate (%)').fillna(0)
                                 st.dataframe(pivot_rate, use_container_width=True)
+                            
+                            # ========== Total Amount Statistics by Status (with time filtering) ==========
+                            if amount_col:
+                                st.markdown("---")
+                                st.header("💰 Total Amount Statistics by Status")
+                                
+                                # Time filter selection
+                                time_filter_type_amount = st.radio(
+                                    "Select Time Filter",
+                                    ["Day", "Hour", "Minute"],
+                                    horizontal=True,
+                                    key="time_filter_amount"
+                                )
+                                
+                                # Reload button
+                                st.button("🔄 Reload Chart", key="reload_amount", help="Click to refresh the chart")
+                                
+                                # Group by selected time filter
+                                if time_filter_type_amount == "Day":
+                                    group_col_amount = 'Date'
+                                    x_label_amount = 'Date'
+                                    df_amount = df.copy()
+                                elif time_filter_type_amount == "Hour":
+                                    df_amount = df.copy()
+                                    df_amount['DateHour'] = df_amount['ParsedDateTime'].dt.strftime('%Y-%m-%d %H:00')
+                                    group_col_amount = 'DateHour'
+                                    x_label_amount = 'Date-Hour'
+                                else:
+                                    df_amount = df.copy()
+                                    df_amount['DateMinute'] = df_amount['ParsedDateTime'].dt.strftime('%Y-%m-%d %H:%M')
+                                    group_col_amount = 'DateMinute'
+                                    x_label_amount = 'Date-Time (Minute)'
+                                
+                                # Calculate total amount by status and time bucket
+                                amount_data = df_amount.groupby([group_col_amount, 'Status'])['Transaction Amount'].sum().reset_index(name='Total Amount')
+                                
+                                # Select chart type
+                                chart_type_amount = st.radio(
+                                    "Chart Type (Total Amount by Status)",
+                                    ["Bar", "Line", "Area"],
+                                    horizontal=True,
+                                    key="chart_type_amount"
+                                )
+                                
+                                hovertemplate_amount_base = f"{x_label_amount}: %{{x}}<br>Status: %{{fullData.name}}<br>Total Amount: %{{y:,.0f}} VND<extra></extra>"
+                                
+                                if chart_type_amount == "Bar":
+                                    fig_amount = px.bar(
+                                        amount_data,
+                                        x=group_col_amount,
+                                        y='Total Amount',
+                                        color='Status',
+                                        title=f'Total Amount by Status ({time_filter_type_amount})',
+                                        labels={group_col_amount: x_label_amount, 'Total Amount': 'Total Amount (VND)'},
+                                        barmode='group',
+                                        text='Total Amount'
+                                    )
+                                    fig_amount.update_traces(
+                                        texttemplate='%{text:,.0f}',
+                                        textposition='outside',
+                                        hovertemplate=hovertemplate_amount_base
+                                    )
+                                    fig_amount.update_layout(
+                                        xaxis_title=x_label_amount,
+                                        yaxis_title='Total Amount (VND)',
+                                        height=500,
+                                        showlegend=True,
+                                        yaxis=dict(tickformat=',.0f')
+                                    )
+                                    st.plotly_chart(fig_amount, use_container_width=True)
+                                
+                                elif chart_type_amount == "Line":
+                                    fig_amount_line = px.line(
+                                        amount_data,
+                                        x=group_col_amount,
+                                        y='Total Amount',
+                                        color='Status',
+                                        title=f'Total Amount by Status ({time_filter_type_amount})',
+                                        labels={group_col_amount: x_label_amount, 'Total Amount': 'Total Amount (VND)'},
+                                        markers=True
+                                    )
+                                    fig_amount_line.update_traces(
+                                        hovertemplate=hovertemplate_amount_base
+                                    )
+                                    fig_amount_line.update_layout(
+                                        xaxis_title=x_label_amount,
+                                        yaxis_title='Total Amount (VND)',
+                                        height=500,
+                                        showlegend=True,
+                                        yaxis=dict(tickformat=',.0f')
+                                    )
+                                    st.plotly_chart(fig_amount_line, use_container_width=True)
+                                
+                                else:  # Area
+                                    fig_amount_area = px.area(
+                                        amount_data,
+                                        x=group_col_amount,
+                                        y='Total Amount',
+                                        color='Status',
+                                        title=f'Total Amount by Status ({time_filter_type_amount})',
+                                        labels={group_col_amount: x_label_amount, 'Total Amount': 'Total Amount (VND)'},
+                                    )
+                                    fig_amount_area.update_traces(
+                                        hovertemplate=hovertemplate_amount_base,
+                                        mode='lines',
+                                    )
+                                    fig_amount_area.update_layout(
+                                        xaxis_title=x_label_amount,
+                                        yaxis_title='Total Amount (VND)',
+                                        height=500,
+                                        showlegend=True,
+                                        yaxis=dict(tickformat=',.0f')
+                                    )
+                                    st.plotly_chart(fig_amount_area, use_container_width=True)
+                                
+                                # Summary statistics
+                                col1, col2, col3 = st.columns(3)
+                                with col1:
+                                    total_all = amount_data['Total Amount'].sum()
+                                    st.metric("Total Amount (All Status)", f"{total_all:,.0f} VND")
+                                
+                                with col2:
+                                    if 'Approved' in amount_data['Status'].values:
+                                        approved_amount = amount_data[amount_data['Status'] == 'Approved']['Total Amount'].sum()
+                                        st.metric("Total Amount (Approved)", f"{approved_amount:,.0f} VND")
+                                    else:
+                                        st.metric("Total Amount (Approved)", "N/A")
+                                
+                                with col3:
+                                    if 'Settled' in amount_data['Status'].values:
+                                        settled_amount = amount_data[amount_data['Status'] == 'Settled']['Total Amount'].sum()
+                                        st.metric("Total Amount (Settled)", f"{settled_amount:,.0f} VND")
+                                    else:
+                                        st.metric("Total Amount (Settled)", "N/A")
+                                
+                                # Show data table
+                                with st.expander("📋 View Data Table"):
+                                    pivot_amount = amount_data.pivot(index=group_col_amount, columns='Status', values='Total Amount').fillna(0)
+                                    # Format numbers in the pivot table
+                                    for col in pivot_amount.columns:
+                                        pivot_amount[col] = pivot_amount[col].apply(lambda x: f"{x:,.0f}" if pd.notna(x) else "0")
+                                    st.dataframe(pivot_amount, use_container_width=True)
+                                
+                                # Additional: Total Amount Distribution by Status (Pie Chart)
+                                st.markdown("---")
+                                st.subheader("📊 Total Amount Distribution by Status")
+                                
+                                # Calculate total amount per status (aggregated across all time)
+                                status_amount_total = df_amount.groupby('Status')['Transaction Amount'].sum().reset_index(name='Total Amount')
+                                
+                                fig_pie = px.pie(
+                                    status_amount_total,
+                                    values='Total Amount',
+                                    names='Status',
+                                    title='Total Amount Distribution by Status',
+                                    hole=0.4
+                                )
+                                fig_pie.update_traces(
+                                    textposition='inside',
+                                    textinfo='percent+label',
+                                    hovertemplate='<b>%{label}</b><br>Total Amount: %{value:,.0f} VND<br>Percentage: %{percent}<extra></extra>'
+                                )
+                                fig_pie.update_layout(
+                                    height=500,
+                                    showlegend=True
+                                )
+                                st.plotly_chart(fig_pie, use_container_width=True)
                             
                             # ========== Success Rate Analysis ==========
                             st.markdown("---")
@@ -633,155 +805,167 @@ def render_analysist():
                                 st.write("**Calculated SR data:**")
                                 st.dataframe(sr_data, use_container_width=True)
                             
-                            # 1. Success Rate Count - Line Chart
+                            # 1. Success Rate Count - single configurable chart
                             st.subheader("📊 Success Rate Count")
-                            fig_sr_count_line = px.line(
-                                sr_data,
-                                x=group_col_sr,
-                                y='SR Count',
-                                title=f'Success Rate Count ({time_filter_type_sr}) - Line Chart',
-                                labels={group_col_sr: x_label_sr, 'SR Count': 'Success Rate Count (Approved + Settled)'},
-                                markers=True,
-                                color_discrete_sequence=['#2E86AB']  # Blue color for Count
+                            chart_type_sr_count = st.radio(
+                                "Chart Type (SR Count)",
+                                ["Line", "Area", "Bar"],
+                                horizontal=True,
+                                key="chart_type_sr_count"
                             )
-                            hovertemplate_sr_count_line = f"{x_label_sr}: %{{x}}<br>SR Count: %{{y}}<extra></extra>"
-                            fig_sr_count_line.update_traces(
-                                hovertemplate=hovertemplate_sr_count_line,
-                                line_color='#2E86AB',
-                                marker_color='#2E86AB'
-                            )
-                            fig_sr_count_line.update_layout(
-                                xaxis_title=x_label_sr,
-                                yaxis_title='Success Rate Count',
-                                height=400,
-                                showlegend=False
-                            )
-                            st.plotly_chart(fig_sr_count_line, use_container_width=True)
+                            hovertemplate_sr_count = f"{x_label_sr}: %{{x}}<br>SR Count: %{{y}}<extra></extra>"
                             
-                            # 2. Success Rate Count - Stacked Area Chart
-                            fig_sr_count_area = px.area(
-                                sr_data,
-                                x=group_col_sr,
-                                y='SR Count',
-                                title=f'Success Rate Count ({time_filter_type_sr}) - Stacked Area',
-                                labels={group_col_sr: x_label_sr, 'SR Count': 'Success Rate Count (Approved + Settled)'},
-                                color_discrete_sequence=['#2E86AB']  # Blue color for Count
-                            )
-                            hovertemplate_sr_count_area = f"{x_label_sr}: %{{x}}<br>SR Count: %{{y}}<extra></extra>"
-                            fig_sr_count_area.update_traces(
-                                hovertemplate=hovertemplate_sr_count_area,
-                                mode='lines',
-                                fillcolor='rgba(46, 134, 171, 0.6)',  # Blue with transparency
-                                line_color='#2E86AB'
-                            )
-                            fig_sr_count_area.update_layout(
-                                xaxis_title=x_label_sr,
-                                yaxis_title='Success Rate Count',
-                                height=400,
-                                showlegend=False
-                            )
-                            st.plotly_chart(fig_sr_count_area, use_container_width=True)
+                            if chart_type_sr_count == "Line":
+                                fig_sr_count_line = px.line(
+                                    sr_data,
+                                    x=group_col_sr,
+                                    y='SR Count',
+                                    title=f'Success Rate Count ({time_filter_type_sr})',
+                                    labels={group_col_sr: x_label_sr, 'SR Count': 'Success Rate Count (Approved + Settled)'},
+                                    markers=True,
+                                    color_discrete_sequence=['#2E86AB']
+                                )
+                                fig_sr_count_line.update_traces(
+                                    hovertemplate=hovertemplate_sr_count,
+                                    line_color='#2E86AB',
+                                    marker_color='#2E86AB'
+                                )
+                                fig_sr_count_line.update_layout(
+                                    xaxis_title=x_label_sr,
+                                    yaxis_title='Success Rate Count',
+                                    height=400,
+                                    showlegend=False
+                                )
+                                st.plotly_chart(fig_sr_count_line, use_container_width=True)
                             
-                            # 3. Success Rate Count - Bar Chart
-                            fig_sr_count_bar = px.bar(
-                                sr_data,
-                                x=group_col_sr,
-                                y='SR Count',
-                                title=f'Success Rate Count ({time_filter_type_sr}) - Bar Chart',
-                                labels={group_col_sr: x_label_sr, 'SR Count': 'Success Rate Count (Approved + Settled)'},
-                                text='SR Count',
-                                color_discrete_sequence=['#f54290']  # Blue color for Count
-                            )
-                            hovertemplate_sr_count_bar = f"{x_label_sr}: %{{x}}<br>SR Count: %{{y}}<extra></extra>"
-                            fig_sr_count_bar.update_traces(
-                                textposition='outside',
-                                hovertemplate=hovertemplate_sr_count_bar,
-                                marker_color='#2E86AB'
-                            )
-                            fig_sr_count_bar.update_layout(
-                                xaxis_title=x_label_sr,
-                                yaxis_title='Success Rate Count',
-                                height=400,
-                                showlegend=False
-                            )
-                            st.plotly_chart(fig_sr_count_bar, use_container_width=True)
+                            elif chart_type_sr_count == "Area":
+                                fig_sr_count_area = px.area(
+                                    sr_data,
+                                    x=group_col_sr,
+                                    y='SR Count',
+                                    title=f'Success Rate Count ({time_filter_type_sr})',
+                                    labels={group_col_sr: x_label_sr, 'SR Count': 'Success Rate Count (Approved + Settled)'},
+                                    color_discrete_sequence=['#2E86AB']
+                                )
+                                fig_sr_count_area.update_traces(
+                                    hovertemplate=hovertemplate_sr_count,
+                                    mode='lines',
+                                    fillcolor='rgba(46, 134, 171, 0.6)',
+                                    line_color='#2E86AB'
+                                )
+                                fig_sr_count_area.update_layout(
+                                    xaxis_title=x_label_sr,
+                                    yaxis_title='Success Rate Count',
+                                    height=400,
+                                    showlegend=False
+                                )
+                                st.plotly_chart(fig_sr_count_area, use_container_width=True)
                             
-                            # 4. Success Rate Percentage - Line Chart
+                            else:  # Bar
+                                fig_sr_count_bar = px.bar(
+                                    sr_data,
+                                    x=group_col_sr,
+                                    y='SR Count',
+                                    title=f'Success Rate Count ({time_filter_type_sr})',
+                                    labels={group_col_sr: x_label_sr, 'SR Count': 'Success Rate Count (Approved + Settled)'},
+                                    text='SR Count',
+                                    color_discrete_sequence=['#2E86AB']
+                                )
+                                fig_sr_count_bar.update_traces(
+                                    textposition='outside',
+                                    hovertemplate=hovertemplate_sr_count,
+                                    marker_color='#2E86AB'
+                                )
+                                fig_sr_count_bar.update_layout(
+                                    xaxis_title=x_label_sr,
+                                    yaxis_title='Success Rate Count',
+                                    height=400,
+                                    showlegend=False
+                                )
+                                st.plotly_chart(fig_sr_count_bar, use_container_width=True)
+                            
+                            # 2. Success Rate Percentage - single configurable chart
                             st.subheader("📈 Success Rate Percentage")
-                            fig_sr_rate_line = px.line(
-                                sr_data,
-                                x=group_col_sr,
-                                y='SR Rate (%)',
-                                title=f'Success Rate Percentage ({time_filter_type_sr}) - Line Chart',
-                                labels={group_col_sr: x_label_sr, 'SR Rate (%)': 'Success Rate (%)'},
-                                markers=True,
-                                color_discrete_sequence=['#F77F00']  # Orange color for Rate
+                            chart_type_sr_rate = st.radio(
+                                "Chart Type (SR Rate)",
+                                ["Line", "Area", "Bar"],
+                                horizontal=True,
+                                key="chart_type_sr_rate"
                             )
-                            hovertemplate_sr_rate_line = f"{x_label_sr}: %{{x}}<br>SR Rate: %{{y}}%<extra></extra>"
-                            fig_sr_rate_line.update_traces(
-                                hovertemplate=hovertemplate_sr_rate_line,
-                                line_color='#F77F00',
-                                marker_color='#F77F00'
-                            )
-                            fig_sr_rate_line.update_layout(
-                                xaxis_title=x_label_sr,
-                                yaxis_title='Success Rate (%)',
-                                height=400,
-                                showlegend=False,
-                                yaxis=dict(range=[0, 100])
-                            )
-                            st.plotly_chart(fig_sr_rate_line, use_container_width=True)
+                            hovertemplate_sr_rate = f"{x_label_sr}: %{{x}}<br>SR Rate: %{{y}}%<extra></extra>"
                             
-                            # 5. Success Rate Percentage - Stacked Area Chart
-                            fig_sr_rate_area = px.area(
-                                sr_data,
-                                x=group_col_sr,
-                                y='SR Rate (%)',
-                                title=f'Success Rate Percentage ({time_filter_type_sr}) - Stacked Area',
-                                labels={group_col_sr: x_label_sr, 'SR Rate (%)': 'Success Rate (%)'},
-                                color_discrete_sequence=['#F77F00']  # Orange color for Rate
-                            )
-                            hovertemplate_sr_rate_area = f"{x_label_sr}: %{{x}}<br>SR Rate: %{{y}}%<extra></extra>"
-                            fig_sr_rate_area.update_traces(
-                                hovertemplate=hovertemplate_sr_rate_area,
-                                mode='lines',
-                                fillcolor='rgba(247, 127, 0, 0.6)',  # Orange with transparency
-                                line_color='#F77F00'
-                            )
-                            fig_sr_rate_area.update_layout(
-                                xaxis_title=x_label_sr,
-                                yaxis_title='Success Rate (%)',
-                                height=400,
-                                showlegend=False,
-                                yaxis=dict(range=[0, 100])
-                            )
-                            st.plotly_chart(fig_sr_rate_area, use_container_width=True)
+                            if chart_type_sr_rate == "Line":
+                                fig_sr_rate_line = px.line(
+                                    sr_data,
+                                    x=group_col_sr,
+                                    y='SR Rate (%)',
+                                    title=f'Success Rate Percentage ({time_filter_type_sr})',
+                                    labels={group_col_sr: x_label_sr, 'SR Rate (%)': 'Success Rate (%)'},
+                                    markers=True,
+                                    color_discrete_sequence=['#F77F00']
+                                )
+                                fig_sr_rate_line.update_traces(
+                                    hovertemplate=hovertemplate_sr_rate,
+                                    line_color='#F77F00',
+                                    marker_color='#F77F00'
+                                )
+                                fig_sr_rate_line.update_layout(
+                                    xaxis_title=x_label_sr,
+                                    yaxis_title='Success Rate (%)',
+                                    height=400,
+                                    showlegend=False,
+                                    yaxis=dict(range=[0, 100])
+                                )
+                                st.plotly_chart(fig_sr_rate_line, use_container_width=True)
                             
-                            # 6. Success Rate Percentage - Bar Chart
-                            fig_sr_rate_bar = px.bar(
-                                sr_data,
-                                x=group_col_sr,
-                                y='SR Rate (%)',
-                                title=f'Success Rate Percentage ({time_filter_type_sr}) - Bar Chart',
-                                labels={group_col_sr: x_label_sr, 'SR Rate (%)': 'Success Rate (%)'},
-                                text='SR Rate (%)',
-                                color_discrete_sequence=['#F77F00']  # Orange color for Rate
-                            )
-                            hovertemplate_sr_rate_bar = f"{x_label_sr}: %{{x}}<br>SR Rate: %{{y}}%<extra></extra>"
-                            fig_sr_rate_bar.update_traces(
-                                texttemplate='%{text:.1f}%',
-                                textposition='outside',
-                                hovertemplate=hovertemplate_sr_rate_bar,
-                                marker_color='#F77F00'
-                            )
-                            fig_sr_rate_bar.update_layout(
-                                xaxis_title=x_label_sr,
-                                yaxis_title='Success Rate (%)',
-                                height=400,
-                                showlegend=False,
-                                yaxis=dict(range=[0, 100])
-                            )
-                            st.plotly_chart(fig_sr_rate_bar, use_container_width=True)
+                            elif chart_type_sr_rate == "Area":
+                                fig_sr_rate_area = px.area(
+                                    sr_data,
+                                    x=group_col_sr,
+                                    y='SR Rate (%)',
+                                    title=f'Success Rate Percentage ({time_filter_type_sr})',
+                                    labels={group_col_sr: x_label_sr, 'SR Rate (%)': 'Success Rate (%)'},
+                                    color_discrete_sequence=['#F77F00']
+                                )
+                                fig_sr_rate_area.update_traces(
+                                    hovertemplate=hovertemplate_sr_rate,
+                                    mode='lines',
+                                    fillcolor='rgba(247, 127, 0, 0.6)',
+                                    line_color='#F77F00'
+                                )
+                                fig_sr_rate_area.update_layout(
+                                    xaxis_title=x_label_sr,
+                                    yaxis_title='Success Rate (%)',
+                                    height=400,
+                                    showlegend=False,
+                                    yaxis=dict(range=[0, 100])
+                                )
+                                st.plotly_chart(fig_sr_rate_area, use_container_width=True)
+                            
+                            else:  # Bar
+                                fig_sr_rate_bar = px.bar(
+                                    sr_data,
+                                    x=group_col_sr,
+                                    y='SR Rate (%)',
+                                    title=f'Success Rate Percentage ({time_filter_type_sr})',
+                                    labels={group_col_sr: x_label_sr, 'SR Rate (%)': 'Success Rate (%)'},
+                                    text='SR Rate (%)',
+                                    color_discrete_sequence=['#F77F00']
+                                )
+                                fig_sr_rate_bar.update_traces(
+                                    texttemplate='%{text:.1f}%',
+                                    textposition='outside',
+                                    hovertemplate=hovertemplate_sr_rate,
+                                    marker_color='#F77F00'
+                                )
+                                fig_sr_rate_bar.update_layout(
+                                    xaxis_title=x_label_sr,
+                                    yaxis_title='Success Rate (%)',
+                                    height=400,
+                                    showlegend=False,
+                                    yaxis=dict(range=[0, 100])
+                                )
+                                st.plotly_chart(fig_sr_rate_bar, use_container_width=True)
                             
                             # Show data table
                             with st.expander("📋 View Success Rate Data Table"):
