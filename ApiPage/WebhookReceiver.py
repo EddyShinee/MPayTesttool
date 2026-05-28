@@ -6,6 +6,7 @@ import pyperclip
 from typing import Dict, List, Any
 import jwt
 import base64
+from ApiPage.common.ui import apply_submit_button_style
 
 # Constants
 KEY_PREFIX = str(uuid.uuid4())[:8]
@@ -393,6 +394,7 @@ class WebhookReceiver:
 def render_webhook_receiver():
     """Main function to render webhook receiver page"""
     st.title("📡 Webhook Receiver")
+    apply_submit_button_style()
     st.markdown("Monitor and analyze incoming webhook data from payment APIs")
 
     # Initialize receiver

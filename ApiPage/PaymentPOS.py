@@ -8,8 +8,13 @@ import uuid
 import time
 import pyperclip
 from utils.EnvSelector import select_environment
+from ApiPage.common.config import get_secret
+from ApiPage.common.http_client import post_json
+from ApiPage.common.jwt_utils import decode_jwt_payload_unverified
+from ApiPage.common.response_view import save_request_trace, render_request_response
+from ApiPage.common.ui import apply_submit_button_style
 
-KEY_PREFIX = str(uuid.uuid4())[:8]
+KEY_PREFIX = "payment_pos"
 
 
 def generate_invoice_no():
@@ -42,7 +47,12 @@ def render_input_form():
     currency_code = st.text_input("currencyCode", "VND", key=f"{KEY_PREFIX}_currency_code_token")
     payment_channel = [st.radio("paymentChannel", ["POSCC", "VNQR"], index=0, key=f"{KEY_PREFIX}_payment_channel_token")]
     user_defined_1 = st.text_input("userDefined1", "00024500937", key=f"{KEY_PREFIX}_user_defined_1_token")
-    secret_key = st.text_input("🔑 Merchant SHA Key", type="password", value="3BEFEF0675BDB0333A435DB13F5C14D606C5A548E817842A1C0F7CB475EE6076", key=f"{KEY_PREFIX}_secret_key_token")
+    secret_key = st.text_input(
+        "🔑 Merchant SHA Key",
+        type="password",
+        value=get_secret("MERCHANT_SHA_KEY_POS", get_secret("MERCHANT_SHA_KEY", "")),
+        key=f"{KEY_PREFIX}_secret_key_token",
+    )
     response_return_url = st.text_input(
         "responseReturnUrl",
         value="https://webhook.site/08fd12ec-4a71-4499-968c-0dbe729b8686",
@@ -75,7 +85,7 @@ def render_input_form():
 
 def handle_send_request_button():
     """Handle the send request button click"""
-    if st.button("🔐 Send request Payment Token", key=f"{KEY_PREFIX}_send_request_button"):
+    if st.button("🔐 Send request Payment Token", key=f"{KEY_PREFIX}_send_request_button", type="primary", use_container_width=True):
         st.session_state["invoice_no"] = generate_invoice_no()
         st.session_state["idempotency_id"] = generate_idempotency_id()
         st.session_state["trigger_send_request"] = True
@@ -117,11 +127,7 @@ def create_api_payload(jwt_token, form_data):
 
 def send_api_request(api_url, api_payload):
     """Send the API request and return response"""
-    try:
-        response = requests.post(api_url, json=api_payload, headers={"Content-Type": "application/json"}, timeout = 300)
-        return response.text, None
-    except Exception as e:
-        return f"ERROR: {e}", str(e)
+    return post_json(api_url, api_payload, api_name="PaymentPOS", timeout=(10, 300), retries=2)
 
 
 def process_request(form_data, api_url):
@@ -171,10 +177,10 @@ def process_request(form_data, api_url):
     elapsed = time.perf_counter() - start_time
     timer_placeholder.info(f"⏱️ **Elapsed time: {elapsed:.1f}s**\n🕒 Started at: `{start_timestamp_str}`\n🌐 **Sending API request...**")
     
-    response_text, error = send_api_request(api_url, api_payload)
+    trace = send_api_request(api_url, api_payload)
     request_end_time = time.perf_counter()
-    
-    st.session_state["response_payload"] = response_text
+    save_request_trace("payment_pos", trace)
+    st.session_state["response_payload"] = trace.text
     
     # Calculate timing details
     total_time = time.perf_counter() - start_time
@@ -195,9 +201,9 @@ def process_request(form_data, api_url):
     st.session_state["timing_info"] = timing_info
     
     # Show final status
-    if error:
+    if trace.error:
         status_placeholder.error("❌ **Request failed!**")
-        st.error(error)
+        st.error(trace.error)
     else:
         status_placeholder.success("✅ **Request successful!**")
     
@@ -217,17 +223,6 @@ def process_request(form_data, api_url):
     timer_placeholder.success(f"✅ **Request completed in {total_time:.3f} seconds**")
     
     st.session_state["request_time"] = total_time
-
-
-def decode_jwt_payload(jwt_token):
-    """Decode JWT payload without verification"""
-    try:
-        payload_part = jwt_token.split('.')[1]
-        padding = '=' * (-len(payload_part) % 4)
-        decoded_bytes = base64.urlsafe_b64decode(payload_part + padding)
-        return json.loads(decoded_bytes)
-    except Exception as e:
-        return {"error": str(e)}
 
 
 def render_payload_section():
@@ -255,6 +250,7 @@ def render_payload_section():
 
 def render_response_section():
     """Render the response display section"""
+    render_request_response("payment_pos", request_title="### 📨 Request Trace", response_title="### 📬 Response Trace")
     st.subheader("📥 Response from API:")
     response_raw = st.session_state.get("response_payload", "")
     
@@ -266,12 +262,12 @@ def render_response_section():
             decoded_response = json.loads(response_raw)
             if 'payload' in decoded_response:
                 st.subheader("🧩 Decoded JWT Response:")
-                st.json(decode_jwt_payload(decoded_response['payload']))
+                st.json(decode_jwt_payload_unverified(decoded_response['payload']))
                 
                 # Web payment URL and copy invoice ID
                 row1_col1, row1_col2 = st.columns(2)
                 with row1_col1:
-                    web_url = decode_jwt_payload(decoded_response['payload']).get('webPaymentUrl')
+                    web_url = decode_jwt_payload_unverified(decoded_response['payload']).get('webPaymentUrl')
                     if web_url:
                         st.markdown(f"[🌐 Open Web Payment URL]({web_url})", unsafe_allow_html=True)
                 with row1_col2:
@@ -283,13 +279,14 @@ def render_response_section():
                         except Exception:
                             st.warning("⚠️ Unable to copy Invoice ID to clipboard. Please copy it manually.")
                             st.code(invoice_id)
-        except:
+        except Exception:
             st.info("Unable to decode JWT response or 'payload' not found in response.")
 
 
 def render_payment_pos():
     """Main function to render the Payment POS page"""
     st.title("🔐 Payment POS")
+    apply_submit_button_style()
     env, api_url = select_environment(key_suffix="payment_pos", env_type="PaymentPOS")
 
     col1, col2 = st.columns(2)

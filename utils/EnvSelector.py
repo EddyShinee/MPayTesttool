@@ -56,13 +56,35 @@ def select_environment(key_suffix="", default_urls=None, env_type="paymentToken"
                 "MPay - Production": "https://pgw.m-pay.vn/payment/4.1/paymentToken"
             }
 
+    env_key = f"env_token_{env_type}_{key_suffix}"
+    api_url_key = f"api_url_{env_type}_{key_suffix}"
+    prev_env_key = f"{env_key}_prev"
+    env_options = list(default_urls.keys())
+    default_env = env_options[0]
+
+    # Initialize state once per page key.
+    if env_key not in st.session_state:
+        st.session_state[env_key] = default_env
+    if prev_env_key not in st.session_state:
+        st.session_state[prev_env_key] = st.session_state[env_key]
+    if api_url_key not in st.session_state:
+        st.session_state[api_url_key] = default_urls[st.session_state[env_key]]
+
+    def _sync_api_url_from_env():
+        selected_env = st.session_state[env_key]
+        prev_env = st.session_state.get(prev_env_key)
+        if selected_env != prev_env:
+            st.session_state[api_url_key] = default_urls[selected_env]
+            st.session_state[prev_env_key] = selected_env
+
     env = st.radio(
         "🌍 Choose Environment",
-        list(default_urls.keys()),
-        index=0,
+        env_options,
+        index=env_options.index(st.session_state[env_key]),
         horizontal=True,
-        key=f"env_token_{env_type}_{key_suffix}"
+        key=env_key,
+        on_change=_sync_api_url_from_env,
     )
 
-    api_url = st.text_input("🔗 API Endpoint", value=default_urls[env], key=f"api_url_{env_type}_{key_suffix}")
+    api_url = st.text_input("🔗 API Endpoint", key=api_url_key)
     return env, api_url

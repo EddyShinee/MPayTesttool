@@ -1,7 +1,6 @@
 import streamlit as st
 import os
 import json
-import requests
 from datetime import datetime
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
@@ -10,10 +9,15 @@ import xml.etree.ElementTree as ET
 from cryptography.hazmat.primitives.serialization import pkcs12
 import xml.dom.minidom
 from utils.EnvSelector import select_environment
+from ApiPage.common.config import get_secret
+from ApiPage.common.http_client import post_text
+from ApiPage.common.response_view import save_request_trace, render_request_response
+from ApiPage.common.ui import apply_submit_button_style
 
 
 def render_payment_action():
     st.title("🔐 Payment Action")
+    apply_submit_button_style()
 
     # --- Chọn môi trường ---
     env, api_url = select_environment(key_suffix="payment_action", env_type="PaymentAction")
@@ -40,11 +44,14 @@ def render_payment_action():
 
     # Pretty print XML helper
     def pretty_print_xml(xml_str: str) -> str:
+        # If it doesn't look like XML, just return as-is
+        if not xml_str or not xml_str.lstrip().startswith("<"):
+            return xml_str
         try:
             parsed = xml.dom.minidom.parseString(xml_str)
             return parsed.toprettyxml(indent="  ")
-        except Exception as e:
-            st.error(f"Error formatting XML: {e}")
+        except Exception:
+            # If formatting fails, fall back to original text without spamming errors
             return xml_str
 
     # Enhanced file upload with error handling
@@ -95,17 +102,17 @@ def render_payment_action():
     
     if use_custom_keys or not default_private_exists:
         private_key_file = safe_file_upload(
-            "🔐 Upload Private Key (.pfx, .p12, .pem, .key)" + 
+            "🔐 Upload Private Key (.pfx, .p12, .pem, .key, .der)" + 
             (" (Optional - will use default if not provided)" if default_private_exists else " (Required)"),
-            ["pfx", "p12", "pem", "key"],
+            ["pfx", "p12", "pem", "key", "der"],
             key="private_key"
         )
     
     if use_custom_keys or not default_public_exists:
         public_cert_file = safe_file_upload(
-            "📄 Upload Public Certificate (.cer, .crt)" + 
+            "📄 Upload Public Certificate (.cer, .crt, .pem)" + 
             (" (Optional - will use default if not provided)" if default_public_exists else " (Required)"),
-            ["cer", "crt"],
+            ["cer", "crt", "pem"],
             key="public_cert"
         )
 
@@ -149,14 +156,23 @@ def render_payment_action():
             key_filename = None
 
         if private_key_data is not None:
-            if key_filename.lower().endswith((".pfx", ".p12")):
+            filename_lower = key_filename.lower() if key_filename else ""
+            if filename_lower.endswith((".pfx", ".p12")):
                 private_key, certificate, additional_certs = pkcs12.load_key_and_certificates(
                     private_key_data,
                     password=private_key_password.encode() if private_key_password else None,
                     backend=default_backend()
                 )
-            elif key_filename.lower().endswith((".pem", ".key")):
+            elif filename_lower.endswith((".pem", ".key")):
                 private_key = serialization.load_pem_private_key(
+                    private_key_data,
+                    password=private_key_password.encode() if private_key_password else None,
+                    backend=default_backend()
+                )
+                certificate = None
+            elif filename_lower.endswith(".der"):
+                # Support DER-encoded private key
+                private_key = serialization.load_der_private_key(
                     private_key_data,
                     password=private_key_password.encode() if private_key_password else None,
                     backend=default_backend()
@@ -220,16 +236,18 @@ def render_payment_action():
     col1, col2 = st.columns(2)
 
     with col1:
-        version = st.text_input("Version", value="3.8")
+        # According to 2C2P Payment Process API docs, current version is 4.3
+        version = st.text_input("Version", value="4.3")
         mid = st.text_input("Merchant ID", value="704704000000211")
         invoice_no = st.text_input("Invoice No", value="01a00a81-364c-48f4-8278-3aef4ec61399")
         amount = st.text_input("Action Amount", value="5000")
         processType = st.selectbox("Process Type", ["I", "R", "V"])
-        timestamp = st.text_input("Timestamp", value=datetime.now().strftime('%y%m%d%H%M%S'))
+        # timeStamp format should be ddMMyyHHmmss per 2C2P docs
+        timestamp = st.text_input("Timestamp", value=datetime.now().strftime('%d%m%y%H%M%S'))
         recurring_id = st.text_input("Recurring Unique ID", value="")
 
         if processType in ["R", "V"]:
-            notifyURL = st.text_input("Notify URL", value="https://eddy.io.vn/callback/webhooks?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiRWRkeSIsImFkbWluIjp0cnVlLCJwaG9uZSI6OTA5NzAwOTgwLCJyYW5kb21fbnVtYmVyIjoxOTkzLCJleHAiOjE3NTU5MzA5NTksImlhdCI6MTc1NTg0NDU1OX0.UXPAQxfEWK1W3RdF9L5yGx023ZYNunnn1uGuZDjZjwo")
+            notifyURL = st.text_input("Notify URL", value=get_secret("PAYMENT_ACTION_NOTIFY_URL", ""))
         else:
             notifyURL = ""
 
@@ -253,16 +271,19 @@ def render_payment_action():
                 start_time = time.time()
 
                 try:
-                    # Create XML payload
+                    # Create XML payload (align order/fields with 2C2P docs)
                     root = ET.Element("PaymentProcessRequest")
                     ET.SubElement(root, "version").text = version
                     ET.SubElement(root, "timeStamp").text = timestamp
                     ET.SubElement(root, "merchantID").text = mid
+                    ET.SubElement(root, "processType").text = processType
                     ET.SubElement(root, "invoiceNo").text = invoice_no
                     ET.SubElement(root, "actionAmount").text = amount
-                    ET.SubElement(root, "recurringUniqueID").text = recurring_id
-                    ET.SubElement(root, "processType").text = processType
-                    ET.SubElement(root, "notifyURL").text = notifyURL
+                    # Optional/extended fields (only include when provided)
+                    if recurring_id:
+                        ET.SubElement(root, "recurringUniqueID").text = recurring_id
+                    if notifyURL:
+                        ET.SubElement(root, "notifyURL").text = notifyURL
                     xml_payload = ET.tostring(root, encoding="unicode")
 
                     st.markdown("### 📄 XML Payload:")
@@ -287,7 +308,10 @@ def render_payment_action():
 
                     # Send request
                     headers = {'content-type': 'text/plain'}
-                    response = requests.post(api_url, data=final_token, headers=headers, timeout=60)
+                    result = post_text(api_url, final_token, api_name="PaymentAction", headers=headers, timeout=(10, 60), retries=1)
+                    save_request_trace("payment_action", result)
+                    if result.error:
+                        raise ValueError(result.error)
 
                     end_time = time.time()
                     duration = round(end_time - start_time, 2)
@@ -295,26 +319,30 @@ def render_payment_action():
                     st.markdown("### 📤 Sent JWS Token:")
                     st.code(final_token)
 
-                    if response.status_code == 200:
+                    if result.status_code == 200:
                         st.success(f"✅ Request successful! ⏱ Took {duration} seconds.")
                     else:
-                        st.warning(f"⚠️ Request failed. Status code: {response.status_code} ⏱ Took {duration} seconds.")
+                        st.warning(f"⚠️ Request failed. Status code: {result.status_code} ⏱ Took {duration} seconds.")
 
                     st.markdown("### 📦 Raw Encrypted Response:")
-                    st.code(response.text)
+                    st.code(result.text)
 
                     # Decrypt response
-                    def is_jwe_compact_format(text):
-                        return len(text.split(".")) == 5
+                    def is_jwe_compact_format(text: str) -> bool:
+                        """Heuristic: compact JWE has 5 dot-separated parts."""
+                        parts = [p for p in text.strip().split(".") if p]
+                        return len(parts) == 5
 
-                    def is_jws_compact_format(text):
-                        return len(text.split(".")) == 3
+                    def is_jws_compact_format(text: str) -> bool:
+                        """Heuristic: compact JWS has 3 dot-separated parts."""
+                        parts = [p for p in text.strip().split(".") if p]
+                        return len(parts) == 3
 
                     xml_result = None
                     try:
-                        if is_jws_compact_format(response.text):
+                        if is_jws_compact_format(result.text):
                             incoming_jws = jws.JWS()
-                            incoming_jws.deserialize(response.text.strip())
+                            incoming_jws.deserialize(result.text.strip())
                             incoming_jws.verify(public_jwk)
                             jwe_payload = incoming_jws.payload.decode("utf-8")
 
@@ -323,20 +351,20 @@ def render_payment_action():
                             incoming_jwe.decrypt(private_jwk)
                             xml_result = incoming_jwe.payload.decode("utf-8")
 
-                        elif is_jwe_compact_format(response.text):
+                        elif is_jwe_compact_format(result.text):
                             incoming_jwe = jwe.JWE()
-                            incoming_jwe.deserialize(response.text.strip())
+                            incoming_jwe.deserialize(result.text.strip())
                             incoming_jwe.decrypt(private_jwk)
                             xml_result = incoming_jwe.payload.decode("utf-8")
 
                         else:
-                            raise ValueError("Response is not in compact JWS or JWE format.")
+                            # Response is not compact JWS/JWE -> likely already plain XML/JSON/error text
+                            xml_result = result.text
 
-                    except Exception as e:
-                        import traceback
-                        st.error(f"❌ Error decoding response:\n{traceback.format_exc()}")
+                    except Exception:
+                        st.error("❌ Error decoding response.")
                         st.markdown("### ❌ Raw Response:")
-                        st.code(response.text)
+                        st.code(result.text)
 
                     if xml_result:
                         st.markdown("### ✅ Final Decrypted 2C2P Response:")
@@ -350,8 +378,10 @@ def render_payment_action():
 
                 except Exception as e:
                     st.error(f"❌ Error during request processing: {e}")
-                    import traceback
-                    st.code(traceback.format_exc())
+
+        # Always render Request/Response Center at the end of the column
+        # so it can reflect traces created during this same run.
+        render_request_response("payment_action", request_title="### 📨 Request Trace", response_title="### 📬 Response Trace")
 
 
 if __name__ == "__main__":

@@ -3,12 +3,15 @@ from utils.EnvSelector import select_environment
 import json
 import uuid
 import pyperclip
-import requests
 import time
-import re
 import streamlit.components.v1 as components
+from ApiPage.common.config import get_secret
+from ApiPage.common.http_client import post_json
+from ApiPage.common.session_utils import init_client_id
+from ApiPage.common.response_view import save_request_trace, render_request_response
+from ApiPage.common.ui import apply_submit_button_style
 
-KEY_PREFIX = str(uuid.uuid4())[:8]
+KEY_PREFIX = "do_payment"
 
 
 def initialize_payment_token():
@@ -26,7 +29,7 @@ def render_basic_info():
     initialize_payment_token()
     
     payment_token = st.text_input("🔑 Payment Token", value=st.session_state.payment_token, key="payment_token")
-    client_id = st.text_input("🧾 Client ID", value=str(uuid.uuid4()).replace("-", "").upper())
+    client_id = st.text_input("🧾 Client ID", value=init_client_id("do_payment_client_id"), key="do_payment_client_id")
     client_ip = st.text_input("📡 Client IP", "47.89.102.11")
     locale = st.text_input("🌐 Locale", "en")
     
@@ -103,6 +106,15 @@ def render_card_encryption_form(card_number, expiry_month, expiry_year, cvv):
     """Render the card encryption form with JavaScript"""
     st.markdown("### 🧾 2C2P Card Encryption Form")
     
+    webhook_token = get_secret("WEBHOOK_AUTH_TOKEN", "")
+    webhook_endpoints = []
+    if webhook_token:
+        webhook_endpoints = [
+            f"https://eddy.io.vn/callback/webhook/encrypt-card?token={webhook_token}",
+            f"http://localhost:8000/webhook/encrypt-card?token={webhook_token}",
+        ]
+    endpoints_js_array = json.dumps(webhook_endpoints)
+
     button_html = f'''
     <div id="encryption-container">
         <form id="2c2p-payment-form" style="display: none;">
@@ -197,10 +209,10 @@ def render_card_encryption_form(card_number, expiry_month, expiry_year, cvv):
             try {{
                 showStatus('📤 Sending encrypted data to webhook...', 'loading');
 
-                const endpoints = [
-                    'https://eddy.io.vn/callback/webhook/encrypt-card?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiRWRkeSIsImFkbWluIjp0cnVlLCJwaG9uZSI6OTA5NzAwOTgwLCJyYW5kb21fbnVtYmVyIjoxOTkzLCJleHAiOjE3NTU5MzA5NTksImlhdCI6MTc1NTg0NDU1OX0.UXPAQxfEWK1W3RdF9L5yGx023ZYNunnn1uGuZDjZjwo',
-                    'http://localhost:8000/webhook/encrypt-card?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiRWRkeSIsImFkbWluIjp0cnVlLCJwaG9uZSI6OTA5NzAwOTgwLCJyYW5kb21fbnVtYmVyIjoxOTkzLCJleHAiOjE3NTU5MzA5NTksImlhdCI6MTc1NTg0NDU1OX0.UXPAQxfEWK1W3RdF9L5yGx023ZYNunnn1uGuZDjZjwo'
-                ];
+                const endpoints = {endpoints_js_array};
+                if (!endpoints.length) {{
+                    throw new Error('Missing WEBHOOK_AUTH_TOKEN config');
+                }}
 
                 for (const endpoint of endpoints) {{
                     try {{
@@ -235,7 +247,7 @@ def render_card_encryption_form(card_number, expiry_month, expiry_year, cvv):
                 throw new Error('All webhook endpoints failed');
             }} catch (error) {{
                 console.error('Webhook error:', error);
-                showStatus('⚠️ Webhook call failed, but encryption succeeded!', 'error');
+                showStatus('⚠️ Webhook call failed or not configured, but encryption succeeded!', 'error');
                 if (formData.get('encryptedCardInfo')) {{
                     showResult({{
                         encryptedCardInfo: formData.get('encryptedCardInfo'),
@@ -362,29 +374,27 @@ def send_payment_request(api_url, payment_token, client_id, client_ip, locale, c
             }
         }
 
-        headers = {"Content-Type": "application/json"}
-
         with st.spinner("🔄 Sending request..."):
-            start_time = time.time()
-            response = requests.post(api_url, headers=headers, json=payload, timeout=30)
-            duration = round(time.time() - start_time, 2)
+            result = post_json(api_url, payload, api_name="DoPayment", timeout=(10, 30), retries=2)
+            duration = result.elapsed
 
-        st.session_state['response_text'] = f"HTTP {response.status_code} | {duration}s\n\n{response.text}"
+        save_request_trace("do_payment", result)
+        if result.error:
+            st.session_state['response_text'] = f"❌ Error sending request: {result.error}"
+            st.session_state['response_summary'] = "❌ Exception occurred during request"
+            st.session_state['payload'] = payload
+            return False
+
+        st.session_state['response_text'] = f"HTTP {result.status_code} | {duration}s\n\n{result.text}"
         st.session_state['payload'] = payload
 
-        if response.status_code == 200:
+        if result.status_code == 200:
             st.session_state['response_summary'] = f"✅ Request successful in {duration} seconds"
         else:
-            st.session_state['response_summary'] = f"❌ Request failed with HTTP {response.status_code} in {duration}s"
+            st.session_state['response_summary'] = f"❌ Request failed with HTTP {result.status_code} in {duration}s"
 
         return True
 
-    except requests.exceptions.Timeout:
-        st.session_state['response_text'] = "❌ Request timeout (30s)"
-        st.session_state['response_summary'] = "❌ Request timed out"
-    except requests.exceptions.ConnectionError:
-        st.session_state['response_text'] = "❌ Connection error - Check network/VPS settings"
-        st.session_state['response_summary'] = "❌ Connection failed"
     except Exception as e:
         st.session_state['response_text'] = f"❌ Error sending request: {str(e)}"
         st.session_state['response_summary'] = f"❌ Exception occurred during request"
@@ -394,57 +404,32 @@ def send_payment_request(api_url, payment_token, client_id, client_ip, locale, c
 
 def render_response_section():
     """Render the response display section"""
-    st.markdown("### 📨 Request Payload")
-    if st.session_state.get('submitted') and 'payload' in st.session_state:
-        st.json(st.session_state['payload'])
-    else:
-        st.info("👆 Click 'Send Request' to see the payload")
-
-    st.markdown("### 📬 API Response")
-    if st.session_state.get('submitted'):
-        # Show response summary
-        summary = st.session_state.get('response_summary', '')
-        if "successful" in summary:
-            st.success(summary)
-        else:
-            st.error(summary)
-
-        # Show response details
-        response_text = st.session_state.get('response_text', 'No response')
-
-        # Try to extract and display JSON
-        match = re.search(r"\{.*\}", response_text, re.DOTALL)
-        if match:
+    def _render_response_extras(parsed, raw):
+        response_payload = parsed
+        if response_payload is None and isinstance(raw, str):
             try:
-                parsed_json = json.loads(match.group())
-                st.json(parsed_json)
-
-                # Handle redirect URL if present
-                redirect_url = parsed_json.get("data", "")
-                if isinstance(redirect_url, str) and redirect_url.startswith("http"):
-                    st.markdown("---")
-                    st.markdown("### 🔗 Next Step")
-                    st.link_button("➡️ Proceed to ACS Page", redirect_url, type="primary")
-
+                response_payload = json.loads(raw)
             except json.JSONDecodeError:
-                st.code(response_text, language="text")
-        else:
-            st.code(response_text, language="text")
-    else:
-        st.info("👆 Submit a request to see the response")
+                response_payload = None
 
-    # Clear response button
-    if st.session_state.get('submitted'):
-        if st.button("🗑️ Clear Response"):
-            for key in ['submitted', 'response_text', 'response_summary', 'payload']:
-                if key in st.session_state:
-                    del st.session_state[key]
-            st.rerun()
+        if isinstance(response_payload, dict):
+            redirect_url = response_payload.get("data", "")
+            if isinstance(redirect_url, str) and redirect_url.startswith("http"):
+                st.markdown("### 🔗 Next Step")
+                st.link_button("➡️ Proceed to ACS Page", redirect_url, type="primary")
+
+    render_request_response(
+        "do_payment",
+        request_title="### 📨 Request Trace",
+        response_title="### 📬 Response Trace",
+        on_response_tab=_render_response_extras,
+    )
 
 
 def render_do_payment():
     """Main function to render the Do Payment page"""
     st.title("💳 Do Payment")
+    apply_submit_button_style()
     env, api_url = select_environment(key_suffix="do_payment", env_type="DoPayment")
     
     col1, col2 = st.columns([1, 1])

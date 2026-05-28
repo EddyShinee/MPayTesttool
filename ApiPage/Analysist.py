@@ -6,8 +6,11 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 import time
 import re
+from ApiPage.common.charting import add_time_bucket
+from ApiPage.common.ui import apply_submit_button_style
 
 
+@st.cache_data(show_spinner=False)
 def parse_html_table(html_content):
     """Parse HTML table from response and convert to DataFrame"""
     try:
@@ -117,6 +120,7 @@ def parse_datetime(date_str):
 
 def render_analysist():
     st.title("📊 Transaction Analysis")
+    apply_submit_button_style()
     
     # Input fields
     col1, col2 = st.columns([1, 1])
@@ -329,23 +333,7 @@ def render_analysist():
                             st.button("🔄 Reload Chart", key="reload_count", help="Click to refresh the chart")
                             
                             # Group by selected time filter
-                            if time_filter_type == "Day":
-                                # Group by calendar day
-                                group_col = 'Date'
-                                x_label = 'Date'
-                                df_group = df.copy()
-                            elif time_filter_type == "Hour":
-                                # Group by full date + hour (to avoid summing all days together)
-                                df_group = df.copy()
-                                df_group['DateHour'] = df_group['ParsedDateTime'].dt.strftime('%Y-%m-%d %H:00')
-                                group_col = 'DateHour'
-                                x_label = 'Date-Hour'
-                            else:
-                                # Group by full date + hour:minute
-                                df_group = df.copy()
-                                df_group['DateMinute'] = df_group['ParsedDateTime'].dt.strftime('%Y-%m-%d %H:%M')
-                                group_col = 'DateMinute'
-                                x_label = 'Date-Time (Minute)'
+                            df_group, group_col, x_label = add_time_bucket(df, time_filter_type, "ParsedDateTime")
                             
                             # Count by status and time bucket
                             count_data = df_group.groupby([group_col, 'Status']).size().reset_index(name='Count')
@@ -448,23 +436,7 @@ def render_analysist():
                             st.button("🔄 Reload Chart", key="reload_rate", help="Click to refresh the chart")
                             
                             # Group by selected time filter
-                            if time_filter_type_rate == "Day":
-                                # Group by calendar day
-                                group_col_rate = 'Date'
-                                x_label_rate = 'Date'
-                                df_rate = df.copy()
-                            elif time_filter_type_rate == "Hour":
-                                # Group by full date + hour
-                                df_rate = df.copy()
-                                df_rate['DateHour'] = df_rate['ParsedDateTime'].dt.strftime('%Y-%m-%d %H:00')
-                                group_col_rate = 'DateHour'
-                                x_label_rate = 'Date-Hour'
-                            else:
-                                # Group by full date + hour:minute
-                                df_rate = df.copy()
-                                df_rate['DateMinute'] = df_rate['ParsedDateTime'].dt.strftime('%Y-%m-%d %H:%M')
-                                group_col_rate = 'DateMinute'
-                                x_label_rate = 'Date-Time (Minute)'
+                            df_rate, group_col_rate, x_label_rate = add_time_bucket(df, time_filter_type_rate, "ParsedDateTime")
                             
                             # Calculate rate by status and time bucket
                             total_by_time = df_rate.groupby(group_col_rate).size().reset_index(name='Total')
@@ -575,20 +547,7 @@ def render_analysist():
                                 st.button("🔄 Reload Chart", key="reload_amount", help="Click to refresh the chart")
                                 
                                 # Group by selected time filter
-                                if time_filter_type_amount == "Day":
-                                    group_col_amount = 'Date'
-                                    x_label_amount = 'Date'
-                                    df_amount = df.copy()
-                                elif time_filter_type_amount == "Hour":
-                                    df_amount = df.copy()
-                                    df_amount['DateHour'] = df_amount['ParsedDateTime'].dt.strftime('%Y-%m-%d %H:00')
-                                    group_col_amount = 'DateHour'
-                                    x_label_amount = 'Date-Hour'
-                                else:
-                                    df_amount = df.copy()
-                                    df_amount['DateMinute'] = df_amount['ParsedDateTime'].dt.strftime('%Y-%m-%d %H:%M')
-                                    group_col_amount = 'DateMinute'
-                                    x_label_amount = 'Date-Time (Minute)'
+                                df_amount, group_col_amount, x_label_amount = add_time_bucket(df, time_filter_type_amount, "ParsedDateTime")
                                 
                                 # Calculate total amount by status and time bucket
                                 amount_data = df_amount.groupby([group_col_amount, 'Status'])['Transaction Amount'].sum().reset_index(name='Total Amount')
@@ -741,21 +700,7 @@ def render_analysist():
                             st.button("🔄 Reload Chart", key="reload_sr", help="Click to refresh the chart")
                             
                             # Group by selected time filter
-                            if time_filter_type_sr == "Day":
-                                df_sr = df.copy()
-                                df_sr['DateStr'] = df_sr['ParsedDateTime'].dt.strftime('%Y-%m-%d')
-                                group_col_sr = 'DateStr'
-                                x_label_sr = 'Date'
-                            elif time_filter_type_sr == "Hour":
-                                df_sr = df.copy()
-                                df_sr['DateHour'] = df_sr['ParsedDateTime'].dt.strftime('%Y-%m-%d %H:00')
-                                group_col_sr = 'DateHour'
-                                x_label_sr = 'Date-Hour'
-                            else:
-                                df_sr = df.copy()
-                                df_sr['DateMinute'] = df_sr['ParsedDateTime'].dt.strftime('%Y-%m-%d %H:%M')
-                                group_col_sr = 'DateMinute'
-                                x_label_sr = 'Date-Time (Minute)'
+                            df_sr, group_col_sr, x_label_sr = add_time_bucket(df, time_filter_type_sr, "ParsedDateTime")
                             
                             # Calculate Success Rate
                             # SR Count = Approved + Settled

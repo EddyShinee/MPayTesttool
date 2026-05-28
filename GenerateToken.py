@@ -6,9 +6,10 @@ Tạo JWT token nhanh cho webhook server
 
 import jwt
 from datetime import datetime, timedelta
+import os
 
 # Cấu hình JWT (giống webhook server)
-JWT_SECRET = "85C237EC4F47FBB2C56B988924786"
+JWT_SECRET = os.getenv("WEBHOOK_AUTH_TOKEN_SECRET", "")
 EXPECTED_PAYLOAD = {
     "name": "Eddy",
     "admin": True,
@@ -18,6 +19,8 @@ EXPECTED_PAYLOAD = {
 
 def generate_token():
     """Tạo JWT token hợp lệ"""
+    if not JWT_SECRET:
+        raise ValueError("Missing WEBHOOK_AUTH_TOKEN_SECRET environment variable")
     # Thêm thời gian hết hạn (24 giờ)
     payload = EXPECTED_PAYLOAD.copy()
     payload['exp'] = datetime.utcnow() + timedelta(hours=24)

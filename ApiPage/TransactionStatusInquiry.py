@@ -1,28 +1,24 @@
-def render_transaction_status_inquiry():
-    import pyperclip
-    import time
-    import requests
-    import json
-    import streamlit as st
-    from streamlit_ace import st_ace
+import streamlit as st
+from utils.EnvSelector import select_environment
+from ApiPage.common.http_client import post_json
+from ApiPage.common.response_view import save_request_trace, set_error_state, render_request_response
+from ApiPage.common.session_utils import init_clipboard_value, init_client_id
+from ApiPage.common.ui import apply_submit_button_style
 
+
+def render_transaction_status_inquiry():
     st.title("🔍 Transaction Status Inquiry")
-    from utils.EnvSelector import select_environment
-    env, api_url = select_environment(key_suffix="transaction_status_inquiry", env_type="TransactionStatusInquiry")
+    apply_submit_button_style()
+    _, api_url = select_environment(key_suffix="transaction_status_inquiry", env_type="TransactionStatusInquiry")
 
     col1, col2 = st.columns([1, 1])
+    state_prefix = "txn_status_inquiry"
 
     with col1:
-        if 'txn_status_payment_token' not in st.session_state:
-            clip = pyperclip.paste()
-            st.session_state.txn_status_payment_token = clip if clip.startswith("kSA") else ""
-
-        payment_token = st.text_input("🔑 Payment Token", key="txn_status_payment_token")
-
-        import uuid
-        if 'client_id_option' not in st.session_state:
-            st.session_state.client_id_option = str(uuid.uuid4()).replace("-", "").upper()
-        client_id = st.text_input("🧾 Client ID", value=st.session_state.client_id_option, key="client_id_option")
+        default_token = init_clipboard_value("txn_status_payment_token", prefix="kSA", fallback="")
+        payment_token = st.text_input("🔑 Payment Token", value=default_token, key="txn_status_payment_token")
+        default_client_id = init_client_id("txn_status_client_id")
+        client_id = st.text_input("🧾 Client ID", value=default_client_id, key="txn_status_client_id")
 
         locale = st.text_input("🌍 Locale", "en")
         # category_code and group_code are no longer used in the payload
@@ -32,7 +28,7 @@ def render_transaction_status_inquiry():
         additional_info = st.radio("Include Additional Info?", options=["Yes", "No"], index=0)
         additional_info_bool = additional_info == "Yes"
 
-        if st.button("🚀 Send Request"):
+        if st.button("🚀 Send Request", type="primary", use_container_width=True):
             if not payment_token:
                 st.warning("⚠️ Payment Token is required.")
             else:
@@ -43,31 +39,28 @@ def render_transaction_status_inquiry():
                     "additionalInfo": additional_info_bool
                 }
                 try:
-                    st.session_state['req_payload'] = payload
-                    start = time.time()
-                    res = requests.post(api_url, json=payload, headers={"Content-Type": "application/json"})
-                    elapsed = round(time.time() - start, 2)
-                    st.session_state['res_payload'] = f"⏱ {elapsed}s | HTTP {res.status_code}\n\n{res.text}"
-                    if res.status_code == 200:
-                        st.toast(f"✅ Request successful in {elapsed} seconds", icon="⏱")
-                        st.success(f"✅ Request successful in ({elapsed} seconds)")
+                    result = post_json(api_url, payload, api_name="TransactionStatusInquiry")
+                    if result.error:
+                        set_error_state(state_prefix, result.error)
+                        st.error(f"❌ {result.error}")
                     else:
-                        st.toast(f"❌ Request failed in {elapsed}s", icon="⏱")
-                        st.error(f"❌ Failed with HTTP {res.status_code}")
-                except Exception as e:
-                    st.session_state['res_payload'] = f"❌ Exception: {e}"
+                        save_request_trace(state_prefix, result)
+                        if result.ok:
+                            st.toast(f"✅ Request successful in {result.elapsed} seconds", icon="⏱")
+                            st.success(f"✅ Request successful in ({result.elapsed} seconds)")
+                        else:
+                            st.toast(f"❌ Request failed in {result.elapsed}s", icon="⏱")
+                            st.error(f"❌ Failed with HTTP {result.status_code}")
+                except Exception as exc:
+                    set_error_state(state_prefix, str(exc))
                     st.error("❌ Exception occurred")
 
     with col2:
-        st.markdown("### 📤 Transaction Inquiry Request")
-        st.json(st.session_state.get('req_payload', {}))
-
-        st.markdown("### 📥 Transaction Inquiry Response")
-        try:
-            parsed_response = json.loads(st.session_state.get('res_payload', '{}').split('\n\n', 1)[-1])
-            st.json(parsed_response)
-        except Exception:
-            st.code(st.session_state.get('res_payload', 'No response'))
+        render_request_response(
+            state_prefix,
+            request_title="### 📤 Transaction Inquiry Request",
+            response_title="### 📥 Transaction Inquiry Response",
+        )
 
 if __name__ == "__main__":
     render_transaction_status_inquiry()

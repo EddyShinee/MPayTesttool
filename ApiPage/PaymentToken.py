@@ -1,6 +1,5 @@
 import streamlit as st
 import streamlit.components.v1 as components
-import requests
 import json
 import datetime
 import jwt  # PyJWT
@@ -11,12 +10,19 @@ import time
 import subprocess
 import platform
 from utils.EnvSelector import select_environment
+from ApiPage.common.config import get_secret
+from ApiPage.common.http_client import post_json
+from ApiPage.common.response_view import save_request_trace, render_request_response
+from ApiPage.common.ui import apply_submit_button_style
 
 # Constants
-KEY_PREFIX = str(uuid.uuid4())[:8]
+KEY_PREFIX = "payment_token"
 DEFAULT_MERCHANT_ID = "704704000000000"
-DEFAULT_SECRET_KEY = "0A85F7ED911FD69D3316ECDF20FCA4E138E590E7EF5D93009FEF1BEC5B2FF13F"
+DEFAULT_SECRET_KEY = get_secret("MERCHANT_SHA_KEY", "")
 PAYMENT_CHANNEL_OPTIONS = ["ALL", "CC", "IPP", "APM", "QR", "VNPAY", "MOMO", "ZALOPAY"]
+PT_PAYLOAD_DATA_KEY = "payment_token_payload_data"
+PT_REQUEST_PAYLOAD_KEY = "payment_token_request_payload"
+PT_RESPONSE_PAYLOAD_KEY = "payment_token_response_payload"
 
 
 class PaymentTokenGenerator:
@@ -53,17 +59,6 @@ class PaymentTokenGenerator:
                 error_msg = f"pyperclip failed: {str(e)}, system command failed: {str(e2)}"
         
         return success, error_msg
-
-    def create_copyable_text(self, text, label="text"):
-        """Create a copyable text widget using Streamlit's built-in functionality"""
-        # Use Streamlit's text_area with copy button
-        st.text_area(
-            f"📋 {label} (Click to copy):",
-            value=text,
-            height=100,
-            key=f"copyable_{label}_{int(time.time())}",
-            help="Click inside the text area and press Ctrl+C (Cmd+C on Mac) to copy"
-        )
 
     @staticmethod
     def generate_invoice_no():
@@ -449,117 +444,38 @@ class PaymentTokenGenerator:
                     key=f"{KEY_PREFIX}_max_accumulate_amount"
                 )
 
-    def send_payment_request(self, payload_data, secret_key, api_url, status_container=None, time_container=None):
-        """Send payment token request with real-time updates"""
+    def send_payment_request(self, payload_data, secret_key, api_url):
+        """Send payment token request and return normalized result."""
         try:
-            # Start timing
             start_time = datetime.datetime.now()
-
-            # Show initial status with progress
-            if status_container:
-                progress_bar = status_container.progress(0)
-                status_text = status_container.empty()
-                status_text.info("⏳ Initializing request...")
-
-            if time_container:
-                time_display = time_container.empty()
-                time_display.markdown("⏰ **Start time:** " + start_time.strftime("%H:%M:%S"))
-
-            # Step 1: Encoding JWT (20% progress)
-            if status_container:
-                progress_bar.progress(20)
-                status_text.info("🔐 Encoding JWT token...")
-            time.sleep(0.3)
-
             jwt_token = jwt.encode(payload_data, secret_key, algorithm="HS256")
 
-            # Step 2: Preparing request (40% progress)
-            if status_container:
-                progress_bar.progress(40)
-                status_text.info("📦 Preparing request payload...")
-            time.sleep(0.2)
-
-            # Step 3: Sending request (60% progress)
-            if status_container:
-                progress_bar.progress(60)
-                status_text.info("🌐 Sending request to API...")
-
-            # Update elapsed time during request
-            request_start = time.time()
-
-            response = requests.post(
+            result = post_json(
                 api_url,
-                json={"payload": jwt_token},
+                {"payload": jwt_token},
+                api_name="PaymentToken",
                 headers={"Content-Type": "application/json"},
-                timeout=300
+                timeout=(10, 300),
+                retries=2,
             )
 
-            # Step 4: Processing response (80% progress)
-            if status_container:
-                progress_bar.progress(80)
-                status_text.info("📥 Processing API response...")
-            time.sleep(0.2)
-
-            # Step 5: Finalizing (100% progress)
-            if status_container:
-                progress_bar.progress(100)
-
-            # Final update
             end_time = datetime.datetime.now()
             total_elapsed = (end_time - start_time).total_seconds()
-
-            if status_container:
-                if response.status_code == 200:
-                    status_text.success(f"✅ Request completed successfully! 🎉")
-                    # Keep progress bar at 100% briefly
-                    time.sleep(0.5)
-                    progress_bar.empty()
-                else:
-                    status_text.warning(f"⚠️ Request completed with status code: {response.status_code}")
-                    progress_bar.empty()
-
-            if time_container:
-                time_display.markdown(f"""
-                📊 **Request Timeline:**
-
-                ⏰ **Start:** {start_time.strftime("%H:%M:%S")}  
-                🏁 **End:** {end_time.strftime("%H:%M:%S")}  
-                ⏱️ **Duration:** {total_elapsed:.2f}s
-
-                {'🚀 **Status:** Success!' if response.status_code == 200 else '⚠️ **Status:** Check response'}
-                """)
 
             return {
                 'success': True,
                 'jwt_token': jwt_token,
-                'response': response.text,
-                'status_code': response.status_code,
+                'response': result.text if not result.error else f"ERROR: {result.error}",
+                'status_code': result.status_code,
                 'start_time': start_time,
                 'end_time': end_time,
-                'duration': total_elapsed
+                'duration': total_elapsed,
+                'trace': result,
             }
 
         except Exception as e:
             end_time = datetime.datetime.now()
             total_elapsed = (end_time - start_time).total_seconds()
-
-            if status_container:
-                if 'progress_bar' in locals():
-                    progress_bar.empty()
-                if 'status_text' in locals():
-                    status_text.error(f"❌ Request failed: {str(e)}")
-
-            if time_container:
-                if 'time_display' in locals():
-                    time_display.markdown(f"""
-                    📊 **Request Timeline:**
-
-                    ⏰ **Started:** {start_time.strftime("%H:%M:%S")}  
-                    💥 **Failed:** {end_time.strftime("%H:%M:%S")}  
-                    ⏱️ **Duration:** {total_elapsed:.2f}s
-
-                    ❌ **Status:** Failed - {str(e)}
-                    """)
 
             return {
                 'success': False,
@@ -723,87 +639,59 @@ class PaymentTokenGenerator:
                 st.rerun()
 
     def render_response_section(self, generator_instance=None):
-        """Render response display section"""
-        # Show last request summary if available
-        if "last_request_result" in st.session_state:
-            last_result = st.session_state["last_request_result"]
-            last_time = st.session_state.get("last_request_time", datetime.datetime.now())
+        """Render strict Request/Response views without mixing."""
+        def _render_response_extras(parsed, raw):
+            decoded_response = parsed
+            if not isinstance(decoded_response, dict):
+                if isinstance(raw, str):
+                    try:
+                        decoded_response = json.loads(raw)
+                    except (json.JSONDecodeError, TypeError):
+                        return
+                else:
+                    return
 
-        # Original response sections
-        st.subheader("📤 Request Payload (Unencrypted):")
-        payload_data = self.session_state.get("payload_data", {})
-        st.json(payload_data)
+            jwt_payload = decoded_response.get("payload")
+            if not jwt_payload:
+                return
 
-        st.subheader("📤 Request Payload (JWT Encrypted):")
-        request_payload = self.session_state.get("request_payload", "")
-        if request_payload:
-            st.code(request_payload, language="text")
-            # Copy button below JWT
-            if st.button("📋 Copy JWT", key=f"{KEY_PREFIX}_copy_jwt"):
-                success, error_msg = generator_instance.copy_to_clipboard(request_payload, "JWT") if generator_instance else (False, "Generator instance not available")
+            st.subheader("🧩 Decoded JWT Response")
+            decoded_payload = self.decode_jwt_payload(jwt_payload)
+            st.json(decoded_payload)
+
+            web_url = decoded_payload.get("webPaymentUrl")
+            if web_url:
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown(f"[🌐 Open Payment URL]({web_url})")
+                with col2:
+                    if st.button("🖼️ Open Payment Dialog", key=f"{KEY_PREFIX}_open_dialog"):
+                        self.show_payment_dialog(web_url)
+
+            if st.button("📋 Copy Payment Token", key=f"{KEY_PREFIX}_copy_token"):
+                payment_token = decoded_payload.get("paymentToken", "Token not found")
+                success, error_msg = (
+                    generator_instance.copy_to_clipboard(payment_token, "Payment Token")
+                    if generator_instance
+                    else (False, "Generator instance not available")
+                )
                 if success:
-                    st.toast("JWT copied to clipboard!", icon="✅")
+                    st.toast("Payment token copied to clipboard!", icon="✅")
                 else:
                     st.error(f"❌ Failed to copy to clipboard: {error_msg}")
-                    st.warning("⚠️ Please copy the JWT manually from below:")
-                    # Add a note about clipboard permissions
-                    st.info("💡 **Note:** On macOS, you may need to grant clipboard access to your terminal/IDE in System Preferences > Security & Privacy > Privacy > Accessibility")
-            
-            # Always show copyable text area
-            if generator_instance:
-                generator_instance.create_copyable_text(request_payload, "JWT Token")
-            else:
-                st.code(request_payload, language="text")
+                    st.code(payment_token, language="text")
 
-        st.subheader("📥 API Response:")
-        response_raw = self.session_state.get("response_payload", "")
-        if response_raw:
-            st.code(response_raw, language="json")
-
-            # Try to decode JWT response
-            try:
-                decoded_response = json.loads(response_raw)
-                if 'payload' in decoded_response:
-                    st.subheader("🧩 Decoded JWT Response:")
-                    decoded_payload = self.decode_jwt_payload(decoded_response['payload'])
-                    st.json(decoded_payload)
-
-                    # Action buttons - stacked vertically instead of columns
-                    web_url = decoded_payload.get('webPaymentUrl')
-                    if web_url:
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.markdown(f"[🌐 Open Payment URL]({web_url})")
-                            st.markdown(f"[🌐 Open Webhook URL](https://eddy.io.vn/callback/)")
-                        with col2:
-                            if st.button("🖼️ Open Payment Dialog", key=f"{KEY_PREFIX}_open_dialog"):
-                                self.show_payment_dialog(web_url)
-
-                    if st.button("📋 Copy Payment Token", key=f"{KEY_PREFIX}_copy_token"):
-                        payment_token = decoded_payload.get('paymentToken', 'Token not found')
-                        success, error_msg = generator_instance.copy_to_clipboard(payment_token, "Payment Token") if generator_instance else (False, "Generator instance not available")
-                        if success:
-                            st.toast("Payment token copied to clipboard!", icon="✅")
-                        else:
-                            st.error(f"❌ Failed to copy to clipboard: {error_msg}")
-                            st.warning("⚠️ Please copy the token manually from below:")
-                            # Add a note about clipboard permissions
-                            st.info("💡 **Note:** On macOS, you may need to grant clipboard access to your terminal/IDE in System Preferences > Security & Privacy > Privacy > Accessibility")
-                        
-                        # Always show copyable text area for payment token
-                        payment_token = decoded_payload.get('paymentToken', 'Token not found')
-                    
-                        if generator_instance:
-                            generator_instance.create_copyable_text(payment_token, "Payment Token")
-                        else:
-                            st.code(payment_token, language="text")
-            except:
-                st.info("💡 Unable to decode JWT response")
-
+        render_request_response(
+            "payment_token",
+            request_title="### 📨 Request Trace",
+            response_title="### 📬 Response Trace",
+            on_response_tab=_render_response_extras,
+        )
 
 def render_payment_token():
     """Main function to render payment token page"""
     st.title("🔐 Payment Token Generator")
+    apply_submit_button_style()
 
     # Initialize generator
     generator = PaymentTokenGenerator()
@@ -849,119 +737,33 @@ def render_payment_token():
             }
             payload_data.update(optional_fields)
 
-            # Create containers for real-time updates
-            st.markdown("---")
-
-            # Toast notification area with custom styling
-            toast_container = st.empty()
-            toast_container.info("🚀 **Starting payment token generation...** ⏳")
-
-            # Status and timing containers with enhanced layout
-            st.markdown("### 📊 Real-time Process Monitor")
-
-            # Create tabs for better organization
-            tab1, tab2 = st.tabs(["🔄 Process Status", "⏱️ Timing Info"])
-
-            with tab1:
-                status_container = st.empty()
-
-            with tab2:
-                time_container = st.empty()
-
-            # Send request with real-time updates
+            # Send request (details are shown in unified request/response panel)
             result = generator.send_payment_request(
                 payload_data,
                 secret_key,
                 api_url,
-                status_container=status_container,
-                time_container=time_container
             )
 
             # Store results in session state
-            st.session_state["payload_data"] = payload_data
-            st.session_state["request_payload"] = result.get('jwt_token', '')
-            st.session_state["response_payload"] = result.get('response', '')
+            st.session_state[PT_PAYLOAD_DATA_KEY] = payload_data
+            st.session_state[PT_REQUEST_PAYLOAD_KEY] = result.get('jwt_token', '')
+            st.session_state[PT_RESPONSE_PAYLOAD_KEY] = result.get('response', '')
+            if result.get("trace") is not None:
+                save_request_trace("payment_token", result["trace"])
 
-            # Store request results in session state for persistent display
-            st.session_state["last_request_result"] = result
-            st.session_state["last_request_time"] = datetime.datetime.now()
-
-            # Final toast notification with rich formatting
             if result['success']:
-                toast_container.success(f"""
-                🎉 **PAYMENT TOKEN GENERATED SUCCESSFULLY!** 🎉
-
-                ⏱️ **Completed in:** {result.get('duration', 0):.2f} seconds  
-                📅 **Finished at:** {result.get('end_time', datetime.datetime.now()).strftime('%H:%M:%S')}  
-                🎯 **Status:** Ready to use!
-                """)
-
-                # Show celebration effect
-                # st.balloons()
-
-                # Add success metrics
-                st.markdown("### 📊 Request Performance Metrics")
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric(
-                        label="⚡ Response Time",
-                        value=f"{result.get('duration', 0):.2f}s",
-                        delta="Fast!" if result.get('duration', 0) < 2 else "Normal"
-                    )
-                with col2:
-                    st.metric(
-                        label="📊 Status Code",
-                        value=result.get('status_code', 'N/A'),
-                        delta="Success" if result.get('status_code') == 200 else "Check"
-                    )
-                with col3:
-                    st.metric(
-                        label="🔐 Token Status",
-                        value="Generated",
-                        delta="✅ Ready"
-                    )
-
-                # Add a button to continue/view results
-                st.markdown("---")
-                if st.button("📋 View Generated Results", key=f"{KEY_PREFIX}_view_results", type="secondary"):
-                    st.rerun()
+                st.toast(
+                    f"Payment token generated in {result.get('duration', 0):.2f}s "
+                    f"(HTTP {result.get('status_code', 'N/A')})",
+                    icon="✅",
+                )
 
             else:
-                toast_container.error(f"""
-                💥 **PAYMENT TOKEN GENERATION FAILED!** 💥
-
-                ❌ **Error:** {result.get('error', 'Unknown error')}  
-                ⏱️ **Failed after:** {result.get('duration', 0):.2f} seconds  
-                📅 **Failed at:** {result.get('end_time', datetime.datetime.now()).strftime('%H:%M:%S')}
-                """)
-
-                # Show error details in expandable section
-                with st.expander("🔍 Detailed Error Information", expanded=True):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.error(f"**Error Message:**\n{result.get('error', 'Unknown error')}")
-                    with col2:
-                        if result.get('duration'):
-                            st.info(f"**Time elapsed before failure:**\n{result.get('duration'):.2f} seconds")
-
-                    # Error metrics
-                    st.markdown("#### 📈 Error Metrics")
-                    error_col1, error_col2 = st.columns(2)
-                    with error_col1:
-                        st.metric(
-                            label="⏱️ Time to Failure",
-                            value=f"{result.get('duration', 0):.2f}s"
-                        )
-                    with error_col2:
-                        st.metric(
-                            label="🔍 Error Type",
-                            value="Request Failed"
-                        )
-
-                # Add retry button
-                st.markdown("---")
-                if st.button("🔄 Try Again", key=f"{KEY_PREFIX}_retry", type="secondary"):
-                    st.rerun()
+                st.toast(
+                    f"Payment token generation failed after {result.get('duration', 0):.2f}s: "
+                    f"{result.get('error', 'Unknown error')}",
+                    icon="❌",
+                )
 
     with col2_main:
         st.subheader("📊 Results")
