@@ -6,8 +6,14 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 import time
 import re
+from types import SimpleNamespace
 from ApiPage.common.charting import add_time_bucket
 from ApiPage.common.ui import apply_submit_button_style
+from ApiPage.common.response_view import (
+    notify_request_toast,
+    notify_request_toast_failed,
+    flush_pending_toasts,
+)
 
 
 @st.cache_data(show_spinner=False)
@@ -181,21 +187,31 @@ def render_analysist():
                     st.session_state['analysist_status'] = response.status_code
                     st.session_state['analysist_elapsed'] = elapsed
                     
-                    if response.status_code == 200:
-                        st.success(f"✅ Request successful in {elapsed} seconds")
-                        st.toast(f"✅ Request successful", icon="✅")
-                    else:
+                    notify_request_toast(
+                        SimpleNamespace(
+                            api_name="Analysist",
+                            elapsed=elapsed,
+                            ok=response.status_code == 200,
+                            error=None,
+                            status_code=response.status_code,
+                        )
+                    )
+                    if response.status_code != 200:
                         st.error(f"❌ Request failed with HTTP {response.status_code}")
-                        st.toast(f"❌ Request failed", icon="❌")
-                        
+
             except requests.exceptions.Timeout:
                 st.error("❌ Request timeout (120s)")
+                notify_request_toast_failed("Analysist", "Request timeout (120s)")
             except requests.exceptions.ConnectionError:
                 st.error("❌ Connection error. Please check your network.")
+                notify_request_toast_failed("Analysist", "Connection error")
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
+                notify_request_toast_failed("Analysist", str(e))
                 st.exception(e)
-    
+
+    flush_pending_toasts()
+
     # Display response and analysis
     if 'analysist_response' in st.session_state:
         response_text = st.session_state.get('analysist_response', '')

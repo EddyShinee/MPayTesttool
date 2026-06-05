@@ -10,6 +10,7 @@ from ApiPage.common.http_client import post_json
 from ApiPage.common.session_utils import init_client_id
 from ApiPage.common.response_view import save_request_trace, render_request_response
 from ApiPage.common.ui import apply_submit_button_style
+from ApiPage.common.payload_utils import omit_empty_fields
 
 KEY_PREFIX = "do_payment"
 
@@ -49,13 +50,13 @@ def render_channel_code():
         with col_cc3:
             agent_channel_code = st.text_input("Agent Channel Code", value="", key="agent_channel_code")
 
-    code_json = {
+    code_json = omit_empty_fields({
         "channelCode": channel_code,
         "agentCode": agent_code,
-        "agentChannelCode": agent_channel_code
-    }
+        "agentChannelCode": agent_channel_code,
+    })
     st.code(json.dumps(code_json, indent=2), language="json")
-    
+
     return code_json
 
 
@@ -68,35 +69,37 @@ def render_payment_information():
         with col_pi1:
             customer_name = st.text_input("Customer Name", value="NGUYEN VAN A", key="customer_name")
             customer_email = st.text_input("Customer Email", value="eddy.vu@2c2p.com", key="customer_email")
+            mobile_no = st.text_input("Mobile No", value="1", key=f"{KEY_PREFIX}_mobile_no")
+            mobile_no_prefix = st.text_input("Mobile No Prefix", value="1", key=f"{KEY_PREFIX}_mobile_no_prefix")
         with col_pi2:
             optional_fields = {}
             st.markdown("IPP Payment")
             if st.checkbox("IPP Payment", key=f"{KEY_PREFIX}_checkbox_ippPayment"):
-                optional_fields['interestType'] = "Y"
-                optional_fields['installmentPeriod'] = st.text_input(
+                optional_fields["interestType"] = "Y"
+                installment_period = st.text_input(
                     "Installment Period",
-                    key=f"{KEY_PREFIX}_installment_period"
+                    key=f"{KEY_PREFIX}_installment_period",
                 )
+                if installment_period:
+                    optional_fields["installmentPeriod"] = installment_period
             card_email = st.text_input("Card Email", value="eddy.vu@2c2p.com", key="card_email")
             qr_type = st.selectbox(
                 "QR Type",
                 options=["", "RAW", "BASE64", "URL"],
                 index=0,
-                key=f"{KEY_PREFIX}_qrType"
+                key=f"{KEY_PREFIX}_qrType",
             )
-            optional_fields['qrType'] = qr_type
-    # Build payment information JSON
-    payment_data = {
+            if qr_type:
+                optional_fields["qrType"] = qr_type
+    payment_data = omit_empty_fields({
         "name": customer_name,
         "cardDetails": {"email": card_email},
         "loyaltyPoints": [],
-        "email": customer_email
-    }
-    
-    # Add optional fields if they exist
-    for key, value in optional_fields.items():
-        if value:
-            payment_data[key] = value
+        "email": customer_email,
+        "mobileNo": mobile_no,
+        "mobileNoPrefix": mobile_no_prefix,
+        **optional_fields,
+    })
 
     st.code(json.dumps(payment_data, indent=2), language="json")
     return payment_data
@@ -354,25 +357,29 @@ def send_payment_request(api_url, payment_token, client_id, client_ip, locale, c
         return False
 
     try:
-        # Prepare payment data
+        payment_body = dict(payment_data)
         if secure_token_input:
-            payment_data['securePayToken'] = secure_token_input
+            payment_body["securePayToken"] = secure_token_input
         else:
-            payment_data['cardNo'] = card_number.replace(" ", "")
-            payment_data['expiryMonth'] = expiry_month
-            payment_data['expiryYear'] = expiry_year
-            payment_data['securityCode'] = cvv
+            payment_body.update(
+                omit_empty_fields({
+                    "cardNo": card_number.replace(" ", "") if card_number else "",
+                    "expiryMonth": expiry_month,
+                    "expiryYear": expiry_year,
+                    "securityCode": cvv,
+                })
+            )
 
-        payload = {
+        payload = omit_empty_fields({
             "paymentToken": payment_token,
             "clientID": client_id,
             "clientIP": client_ip,
             "locale": locale,
             "payment": {
                 "code": code_json,
-                "data": payment_data
-            }
-        }
+                "data": omit_empty_fields(payment_body),
+            },
+        })
 
         with st.spinner("🔄 Sending request..."):
             result = post_json(api_url, payload, api_name="DoPayment", timeout=(10, 30), retries=2)

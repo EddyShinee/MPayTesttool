@@ -54,11 +54,7 @@ def render_payment_inquiry():
                     st.error(f"❌ {result.error}")
                 else:
                     save_request_trace("payment_inquiry", result)
-                    if result.ok:
-                        st.toast(f"✅ Request successful in {result.elapsed} seconds", icon="⏱")
-                        st.success(f"✅ Request successful in ({result.elapsed} seconds)")
-                    else:
-                        st.toast(f"❌ Request failed in {result.elapsed}s", icon="⏱")
+                    if not result.ok:
                         st.error(f"❌ Failed with HTTP {result.status_code}")
             except Exception as exc:
                 set_error_state("payment_inquiry", str(exc))

@@ -44,16 +44,103 @@ def _decode_jwt_payload_unverified(jwt_token: str):
         return None
 
 
-def save_request_trace(prefix: str, trace) -> None:
+def _prefix_to_api_name(prefix: str) -> str:
+    return "".join(part.capitalize() for part in prefix.split("_"))
+
+
+def _friendly_api_label(api_name: str, *, success: bool) -> str:
+    labels = {
+        "PaymentToken": ("Payment token generated", "Payment token generation failed"),
+        "DoPayment": ("Do Payment completed", "Do Payment failed"),
+        "PaymentAction": ("Payment Action completed", "Payment Action failed"),
+        "PaymentPOS": ("Payment POS completed", "Payment POS failed"),
+    }
+    if api_name in labels:
+        return labels[api_name][0 if success else 1]
+    if success:
+        return f"{api_name} completed"
+    return f"{api_name} failed"
+
+
+def _trace_elapsed_seconds(trace) -> float:
+    elapsed = getattr(trace, "elapsed", None)
+    if elapsed is not None:
+        return float(elapsed)
+    if isinstance(trace, dict):
+        return round(float(trace.get("duration_ms", 0)) / 1000, 2)
+    return 0.0
+
+
+_PENDING_TOASTS_KEY = "_pending_request_toasts"
+
+
+def _queue_toast(message: str, icon: str) -> None:
+    """
+    Queue a toast in session_state so it survives an st.rerun().
+    Streamlit discards toasts emitted in a script run that ends with st.rerun(),
+    so we persist them and flush on the next render.
+    """
+    pending = st.session_state.get(_PENDING_TOASTS_KEY)
+    if not isinstance(pending, list):
+        pending = []
+    pending.append({"message": message, "icon": icon})
+    st.session_state[_PENDING_TOASTS_KEY] = pending
+
+
+def flush_pending_toasts() -> None:
+    """Display and clear any queued toasts. Safe to call on every render."""
+    pending = st.session_state.get(_PENDING_TOASTS_KEY)
+    if not pending:
+        return
+    st.session_state[_PENDING_TOASTS_KEY] = []
+    for item in pending:
+        st.toast(item.get("message", ""), icon=item.get("icon", "ℹ️"))
+
+
+def notify_request_toast(trace, *, show: bool = True) -> None:
+    """Queue a short success/failure toast after an API call (PaymentToken style)."""
+    if not show:
+        return
+
+    api_name = getattr(trace, "api_name", None) or "Request"
+    elapsed = _trace_elapsed_seconds(trace)
+    error = getattr(trace, "error", None)
+    status_code = getattr(trace, "status_code", None) or getattr(trace, "http_status_code", 0)
+    ok = bool(getattr(trace, "ok", False)) and not error
+
+    if ok:
+        label = _friendly_api_label(api_name, success=True)
+        _queue_toast(f"{label} in {elapsed:.2f}s (HTTP {status_code})", "✅")
+    else:
+        label = _friendly_api_label(api_name, success=False)
+        detail = error or f"HTTP {status_code}"
+        _queue_toast(f"{label} after {elapsed:.2f}s: {detail}", "❌")
+
+
+def notify_request_toast_failed(
+    api_name: str,
+    error: str,
+    elapsed: float | None = None,
+) -> None:
+    label = _friendly_api_label(api_name, success=False)
+    if elapsed is not None and elapsed > 0:
+        _queue_toast(f"{label} after {elapsed:.2f}s: {error}", "❌")
+    else:
+        _queue_toast(f"{label}: {error}", "❌")
+
+
+def save_request_trace(prefix: str, trace, *, show_toast: bool = True) -> None:
     st.session_state[f"{prefix}_trace"] = trace
     # After a new request, prioritize showing the latest response trace.
     st.session_state[f"{prefix}_trace_view"] = "Response"
+    notify_request_toast(trace, show=show_toast)
 
 
-def set_error_state(prefix: str, error_text: str) -> None:
+def set_error_state(prefix: str, error_text: str, *, api_name: str | None = None) -> None:
     st.session_state[f"{prefix}_res_payload"] = f"❌ Exception: {error_text}"
     st.session_state[f"{prefix}_trace"] = None
     st.session_state[f"{prefix}_trace_view"] = "Response"
+    notify_request_toast_failed(api_name or _prefix_to_api_name(prefix), error_text)
 
 
 def _legacy_trace(prefix: str):
@@ -97,6 +184,8 @@ def render_request_response(
     response_title: str = "### 📬 Response",
     on_response_tab=None,
 ) -> None:
+    flush_pending_toasts()
+
     trace = st.session_state.get(f"{prefix}_trace")
     if trace is None:
         trace = _legacy_trace(prefix)

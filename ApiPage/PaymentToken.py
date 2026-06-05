@@ -12,8 +12,13 @@ import platform
 from utils.EnvSelector import select_environment
 from ApiPage.common.config import get_secret
 from ApiPage.common.http_client import post_json
-from ApiPage.common.response_view import save_request_trace, render_request_response
+from ApiPage.common.response_view import (
+    save_request_trace,
+    render_request_response,
+    notify_request_toast_failed,
+)
 from ApiPage.common.ui import apply_submit_button_style
+from ApiPage.common.payload_utils import omit_empty_fields
 
 # Constants
 KEY_PREFIX = "payment_token"
@@ -170,279 +175,261 @@ class PaymentTokenGenerator:
             'payment_channel': payment_channel
         }
 
+    # ------------------------------------------------------------------
+    # Request parameters (derived from PaymentToken_RequestParameter.docx)
+    # Phan loai theo nhom de de tim. Chi field co gia tri moi vao request.
+    # ------------------------------------------------------------------
+    def _param_categories(self):
+        sca_options = [
+            "authentication_outage", "delegated_authentication", "low_value",
+            "low_risk", "secure_corporate_payment", "trusted_merchant",
+            "recurring_payment", "out_of_sca_scope", "transaction_risk_assessment",
+            "other", "none",
+        ]
+        return {
+            "\U0001F517 URLs": [
+                ("frontendReturnUrl", "Frontend Return URL", "text",
+                 {"default": "https://eddy.io.vn/callback/webhook/callback-frontend"}),
+                ("backendReturnUrl", "Backend Return URL", "text",
+                 {"default": "https://eddy.io.vn/callback/webhook/payment"}),
+                ("schemeReturnUrl", "Scheme Return URL", "text", {}),
+                ("appBundleID", "App Bundle ID", "text", {}),
+                ("nonceStr", "Nonce Str", "text", {}),
+            ],
+            "\U0001F4B3 Payment": [
+                ("locale", "Locale", "select", {"options": ["vi", "en"]}),
+                ("request3DS", "Request 3DS", "select", {"options": ["Y", "F", "N"]}),
+                ("paymentExpiry", "Payment Expiry (yyyy-MM-dd HH:mm:ss)", "text", {}),
+                ("immediatePayment", "Immediate Payment", "bool", {}),
+                ("iframeMode", "Iframe Mode", "bool", {}),
+                ("paymentRouteID", "Payment Route ID", "text", {}),
+                ("promotionCode", "Promotion Code", "text", {}),
+                ("transactionInitiator", "Transaction Initiator", "select", {"options": ["C", "M"]}),
+                ("transactionMode", "Transaction Mode", "text", {}),
+                ("agentChannel", "Agent Channel (CSV)", "list_csv", {}),
+                ("allowCustomerNote", "Allow Customer Note", "bool", {}),
+            ],
+            "\U0001F3AB Tokenization": [
+                ("tokenize", "Tokenize", "bool", {}),
+                ("tokenizeOnly", "Tokenize Only", "bool", {}),
+                ("customerTokenOnly", "Customer Token Only", "bool", {}),
+                ("customerToken", "Customer Token (CSV)", "list_csv", {}),
+                ("storeCredentials", "Store Credentials", "select", {"options": ["F", "S", "N"]}),
+                ("externalToken", "External Token", "text", {}),
+            ],
+            "\U0001F4B0 Installment": [
+                ("interestType", "Interest Type", "select", {"options": ["A", "C", "M"]}),
+                ("installmentPeriodFilter", "Installment Period Filter (CSV int)", "list_int_csv", {}),
+                ("installmentBankFilter", "Installment Bank Filter (CSV)", "list_csv", {}),
+                ("productCode", "Product Code", "text", {}),
+            ],
+            "\U0001F501 Recurring": [
+                ("recurring", "Recurring", "bool", {}),
+                ("invoicePrefix", "Invoice Prefix", "text", {}),
+                ("recurringAmount", "Recurring Amount", "float", {}),
+                ("allowAccumulate", "Allow Accumulate", "bool", {}),
+                ("maxAccumulateAmount", "Max Accumulate Amount", "float", {}),
+                ("recurringInterval", "Recurring Interval (days)", "int", {}),
+                ("recurringCount", "Recurring Count", "int", {}),
+                ("chargeNextDate", "Charge Next Date (ddMMyyyy)", "text", {}),
+                ("chargeOnDate", "Charge On Date (ddMM)", "text", {}),
+            ],
+            "\U0001F510 3DS / Auth": [
+                ("protocolVersion", "Protocol Version", "text", {"help": "Default: 2.1.0"}),
+                ("eci", "ECI", "select",
+                 {"options": ["00", "01", "02", "05", "06", "07", "80", "81", "82", "83"]}),
+                ("cavv", "CAVV", "text", {}),
+                ("dsTransactionId", "DS Transaction ID", "text", {}),
+                ("scaExemptionIndicator", "SCA Exemption Indicator", "select", {"options": sca_options}),
+                ("previousPaymentID", "Previous Payment ID", "text", {}),
+                ("allow3DSUpgrade", "Allow 3DS Upgrade", "select", {"options": ["Y", "N"]}),
+                ("requestReauthentication", "Request Reauthentication", "bool", {}),
+            ],
+            "\U0001F4B1 Forex": [
+                ("fxProviderCode", "FX Provider Code", "text", {}),
+                ("fxRateId", "FX Rate ID", "text", {}),
+                ("originalAmount", "Original Amount", "float", {}),
+            ],
+            "\U0001F3EC Merchant": [
+                ("externalSubMerchantID", "External Sub Merchant ID", "text", {}),
+                ("childMerchantID", "Child Merchant ID", "text", {}),
+                ("defaultSettlementCurrencyMerchantID", "Default Settlement Currency Merchant ID", "text", {}),
+                ("settlementCurrencyMerchantID", "Settlement Currency Merchant ID", "text", {}),
+                ("statementDescriptor", "Statement Descriptor", "text", {}),
+                ("newRedisCacheOptimizationSwitchTag", "Redis Cache Optimization", "bool", {}),
+                ("subMerchants", "Sub Merchants", "submerchants", {}),
+            ],
+            "\U0001F4DD User Defined": [
+                ("userDefined1", "User Defined 1", "text", {}),
+                ("userDefined2", "User Defined 2", "text", {}),
+                ("userDefined3", "User Defined 3", "text", {}),
+                ("userDefined4", "User Defined 4", "text", {}),
+                ("userDefined5", "User Defined 5", "text", {}),
+            ],
+            "\U0001F9FE Client": [
+                ("clientIP", "Client IP", "text", {}),
+                ("clientAppID", "Client App ID", "text", {}),
+                ("userAgent", "User Agent", "text", {}),
+            ],
+            "\U0001F4E6 Complex (JSON)": [
+                ("paymentItems", "Payment Items", "json", {}),
+                ("uiParams", "UI Params", "json", {}),
+                ("customerAddress", "Customer Address", "json", {}),
+                ("airlinePassengers", "Airline Passengers", "json", {}),
+                ("3DSecure2Params", "3DSecure2 Params", "json", {}),
+                ("loyaltyPoints", "Loyalty Points", "json", {}),
+                ("browserDetails", "Browser Details", "json", {}),
+                ("accountFunding", "Account Funding", "json", {}),
+            ],
+        }
+
+    def _collect_param(self, optional_fields, name, label, kind, opts):
+        """Render one input and add it to optional_fields only when it has a value."""
+        wkey = f"{KEY_PREFIX}_opt_{name}"
+        help_text = opts.get("help")
+
+        if kind == "text":
+            val = st.text_input(label, value=opts.get("default", ""), key=wkey, help=help_text)
+            if val and val.strip():
+                optional_fields[name] = val.strip()
+
+        elif kind == "select":
+            choices = [""] + list(opts["options"])
+            val = st.selectbox(label, choices, key=wkey, help=help_text)
+            if val:
+                optional_fields[name] = val
+
+        elif kind == "bool":
+            val = st.selectbox(label, ["(not set)", "true", "false"], key=wkey, help=help_text)
+            if val == "true":
+                optional_fields[name] = True
+            elif val == "false":
+                optional_fields[name] = False
+
+        elif kind == "int":
+            val = st.text_input(label, value="", key=wkey, help=help_text)
+            if val and val.strip():
+                try:
+                    optional_fields[name] = int(val.strip())
+                except ValueError:
+                    st.warning(f"\u26a0\ufe0f {label}: phai la so nguyen")
+
+        elif kind == "float":
+            val = st.text_input(label, value="", key=wkey, help=help_text)
+            if val and val.strip():
+                try:
+                    optional_fields[name] = float(val.strip())
+                except ValueError:
+                    st.warning(f"\u26a0\ufe0f {label}: phai la so")
+
+        elif kind == "list_csv":
+            val = st.text_input(label, value="", key=wkey, help=help_text or "Ngan cach bang dau phay")
+            items = [v.strip() for v in val.split(",") if v.strip()]
+            if items:
+                optional_fields[name] = items
+
+        elif kind == "list_int_csv":
+            val = st.text_input(label, value="", key=wkey, help=help_text or "Vi du: 3,6,12")
+            items, ok = [], True
+            for v in val.split(","):
+                v = v.strip()
+                if not v:
+                    continue
+                try:
+                    items.append(int(v))
+                except ValueError:
+                    ok = False
+            if not ok:
+                st.warning(f"\u26a0\ufe0f {label}: phai la danh sach so nguyen")
+            if items:
+                optional_fields[name] = items
+
+        elif kind == "json":
+            raw = st.text_area(label, value="", key=wkey, height=120,
+                               help=help_text or "Nhap JSON hop le")
+            if raw and raw.strip():
+                try:
+                    parsed = json.loads(raw)
+                    if parsed not in (None, "", [], {}):
+                        optional_fields[name] = parsed
+                except json.JSONDecodeError as exc:
+                    st.warning(f"\u26a0\ufe0f {label}: JSON khong hop le ({exc})")
+
+        elif kind == "submerchants":
+            self._collect_submerchants(optional_fields, name, label, wkey)
+
+    def _collect_submerchants(self, optional_fields, name, label, wkey):
+        """Chon so luong sub merchant -> tu dong sinh bo input cho tung sub merchant."""
+        st.markdown(f"**{label}**")
+        count = st.number_input(
+            "Number of Sub Merchants",
+            min_value=0,
+            max_value=20,
+            value=0,
+            step=1,
+            key=f"{wkey}_count",
+            help="Chon so luong de tu dong sinh form nhap cho tung sub merchant",
+        )
+
+        sub_list = []
+        for i in range(int(count)):
+            with st.expander(f"Sub Merchant #{i + 1}", expanded=True):
+                c1, c2 = st.columns(2)
+                with c1:
+                    m_id = st.text_input("merchantID *", key=f"{wkey}_{i}_merchantID")
+                    invoice_no = st.text_input("invoiceNo *", key=f"{wkey}_{i}_invoiceNo")
+                    description = st.text_input("description *", key=f"{wkey}_{i}_description")
+                with c2:
+                    amount_raw = st.text_input("amount *", key=f"{wkey}_{i}_amount")
+                    original_amount_raw = st.text_input("originalAmount", key=f"{wkey}_{i}_originalAmount")
+
+                sub = {}
+                if m_id.strip():
+                    sub["merchantID"] = m_id.strip()
+                if invoice_no.strip():
+                    sub["invoiceNo"] = invoice_no.strip()
+                if description.strip():
+                    sub["description"] = description.strip()
+                for fld, raw in (("amount", amount_raw), ("originalAmount", original_amount_raw)):
+                    raw = (raw or "").strip()
+                    if not raw:
+                        continue
+                    try:
+                        sub[fld] = float(raw)
+                    except ValueError:
+                        st.warning(f"\u26a0\ufe0f Sub Merchant #{i + 1} - {fld}: phai la so")
+
+                if sub:
+                    sub_list.append(sub)
+
+        if sub_list:
+            optional_fields[name] = sub_list
+
     def render_advanced_options(self):
-        """Render advanced/optional fields"""
+        """Render advanced/optional fields grouped by category (tabs)."""
         optional_fields = {}
+        categories = self._param_categories()
+        wide_kinds = {"json", "submerchants"}
 
-        with st.expander("➕ Advanced Options"):
-            # URL Options
-            st.subheader("🔗 URL Configuration")
-            col1, col2 = st.columns(2)
+        with st.expander("\u2795 Advanced Options", expanded=False):
+            tab_labels = list(categories.keys())
+            tabs = st.tabs(tab_labels)
+            for tab, label in zip(tabs, tab_labels):
+                with tab:
+                    specs = categories[label]
+                    normal_specs = [s for s in specs if s[2] not in wide_kinds]
+                    wide_specs = [s for s in specs if s[2] in wide_kinds]
 
-            with col1:
-                if st.checkbox("Frontend Return URL", key=f"{KEY_PREFIX}_checkbox_frontendReturnUrl", value=True):
-                    optional_fields['frontendReturnUrl'] = st.text_input(
-                        "Frontend Return URL",
-                        "https://eddy.io.vn/callback/webhook/callback-frontend",
-                        key=f"{KEY_PREFIX}_frontend_return_url"
-                    )
+                    if normal_specs:
+                        cols = st.columns(2)
+                        for idx, (fname, flabel, kind, opts) in enumerate(normal_specs):
+                            with cols[idx % 2]:
+                                self._collect_param(optional_fields, fname, flabel, kind, opts)
 
-            with col2:
-                if st.checkbox("Backend Return URL", key=f"{KEY_PREFIX}_checkbox_backendReturnUrl", value=True):
-                    optional_fields['backendReturnUrl'] = st.text_input(
-                        "Backend Return URL",
-                        "https://eddy.io.vn/callback/webhook/payment",
-                        key=f"{KEY_PREFIX}_backend_return_url"
-                    )
-
-            # Payment Options
-            st.subheader("💳 Payment Configuration")
-            col1, col2, col3 = st.columns(3)
-
-            with col1:
-                if st.checkbox("Locale", key=f"{KEY_PREFIX}_checkbox_locale"):
-                    optional_fields['locale'] = st.selectbox(
-                        "Locale", ["vi", "en"],
-                        key=f"{KEY_PREFIX}_locale"
-                    )
-
-                if st.checkbox("Request 3DS", key=f"{KEY_PREFIX}_checkbox_request3DS"):
-                    optional_fields['request3DS'] = st.selectbox(
-                        "Request 3DS", ["Y", "N", "F"],
-                        key=f"{KEY_PREFIX}_request3ds"
-                    )
-
-            with col2:
-                if st.checkbox("Payment Expiry", key=f"{KEY_PREFIX}_checkbox_paymentExpiry"):
-                    optional_fields['paymentExpiry'] = st.text_input(
-                        "Payment Expiry (yyyy-MM-dd HH:mm:ss)",
-                        key=f"{KEY_PREFIX}_payment_expiry"
-                    )
-
-                if st.checkbox("Agent Channel", key=f"{KEY_PREFIX}_checkbox_agentChannel"):
-                    optional_fields['agentChannel'] = st.text_input(
-                        "Agent Channel",
-                        key=f"{KEY_PREFIX}_agent_channel"
-                    )
-
-            with col3:
-                if st.checkbox("Immediate Payment", key=f"{KEY_PREFIX}_checkbox_immediatePayment"):
-                    optional_fields['immediatePayment'] = st.selectbox(
-                        "Immediate Payment", ["Y", "N"],
-                        key=f"{KEY_PREFIX}_immediate_payment"
-                    )
-
-            # Token Options
-            st.subheader("🎫 Token Configuration")
-            col1, col2 = st.columns(2)
-
-            with col1:
-                if st.checkbox("Tokenize", key=f"{KEY_PREFIX}_checkbox_tokenize"):
-                    optional_fields['tokenize'] = st.selectbox(
-                        "Tokenize", [True, False],
-                        key=f"{KEY_PREFIX}_tokenize"
-                    )
-
-                if st.checkbox("Customer Token Only", key=f"{KEY_PREFIX}_checkbox_customerTokenOnly"):
-                    optional_fields['customerTokenOnly'] = st.checkbox(
-                        "Customer Token Only",
-                        key=f"{KEY_PREFIX}_customer_token_only"
-                    )
-
-            with col2:
-                if st.checkbox("Customer Token", key=f"{KEY_PREFIX}_checkbox_customerToken"):
-                    raw_token_input = st.text_area(
-                        "Customer Token (comma-separated)",
-                        key=f"{KEY_PREFIX}_customer_token"
-                    )
-                    optional_fields['customerToken'] = [
-                        token.strip() for token in raw_token_input.split(',') if token.strip()
-                    ]
-
-                if st.checkbox("Tokenize Only", key=f"{KEY_PREFIX}_checkbox_tokenizeOnly"):
-                    optional_fields['tokenizeOnly'] = st.checkbox(
-                        "Tokenize Only",
-                        key=f"{KEY_PREFIX}_tokenize_only"
-                    )
-
-            # 3DS Configuration Block
-            st.subheader("🎫 3DS Configuration")
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                if st.checkbox("Protocol Version", key=f"{KEY_PREFIX}_checkbox_protocol_version"):
-                    optional_fields['protocolVersion'] = st.text_input(
-                        "Protocol Version",
-                        value="2.1.0",
-                        help="Default: 2.1.0",
-                        key=f"{KEY_PREFIX}_protocol_version"
-                    )
-                    
-                if st.checkbox("ECI", key=f"{KEY_PREFIX}_checkbox_eci"):
-                    optional_fields['eci'] = st.selectbox(
-                        "ECI",
-                        options=["", "00", "01", "02", "05", "06", "07", "80", "81", "82", "83"],
-                        help="Length: 2 characters",
-                        key=f"{KEY_PREFIX}_eci"
-                    )
-            
-            with col2:
-                if st.checkbox("CAVV", key=f"{KEY_PREFIX}_checkbox_cavv"):
-                    optional_fields['cavv'] = st.text_input(
-                        "CAVV",
-                        help="Length: 40 characters",
-                        key=f"{KEY_PREFIX}_cavv"
-                    )
-                    
-                if st.checkbox("DS Transaction ID", key=f"{KEY_PREFIX}_checkbox_ds_transaction_id"):
-                    optional_fields['dsTransactionId'] = st.text_input(
-                        "DS Transaction ID",
-                        help="Length: 36 characters (GUID)",
-                        key=f"{KEY_PREFIX}_ds_transaction_id"
-                    )
-
-            # Installment & Recurring fields (moved from nested expander)
-            st.subheader("💰 Installment & Recurring")
-            self._render_installment_fields(optional_fields)
-            self._render_recurring_fields(optional_fields)
-
-            # Other fields (moved from nested expander)
-            st.subheader("🔧 Other Options")
-            self._render_other_fields(optional_fields)
+                    for fname, flabel, kind, opts in wide_specs:
+                        self._collect_param(optional_fields, fname, flabel, kind, opts)
 
         return optional_fields
-
-    def _render_installment_fields(self, optional_fields):
-        """Render installment related fields"""
-        col1, col2 = st.columns(2)
-
-        with col1:
-            if st.checkbox("Interest Type", key=f"{KEY_PREFIX}_checkbox_interestType"):
-                optional_fields['interestType'] = st.selectbox(
-                    "Interest Type", ["FULL", "PARTIAL"],
-                    key=f"{KEY_PREFIX}_interest_type"
-                )
-
-            if st.checkbox("Installment Period Filter", key=f"{KEY_PREFIX}_checkbox_installmentPeriodFilter"):
-                optional_fields['installmentPeriodFilter'] = st.text_input(
-                    "Installment Period Filter",
-                    key=f"{KEY_PREFIX}_installment_period_filter"
-                )
-
-        with col2:
-            if st.checkbox("Installment Bank Filter", key=f"{KEY_PREFIX}_checkbox_installmentBankFilter"):
-                optional_fields['installmentBankFilter'] = st.text_input(
-                    "Installment Bank Filter",
-                    key=f"{KEY_PREFIX}_installment_bank_filter"
-                )
-
-    def _render_recurring_fields(self, optional_fields):
-        """Render recurring payment fields"""
-        col1, col2 = st.columns(2)
-
-        with col1:
-            if st.checkbox("Recurring", key=f"{KEY_PREFIX}_checkbox_recurring"):
-                optional_fields['recurring'] = st.selectbox(
-                    "Recurring", ["Y", "N"],
-                    key=f"{KEY_PREFIX}_recurring"
-                )
-
-            if st.checkbox("Recurring Amount", key=f"{KEY_PREFIX}_checkbox_recurringAmount"):
-                optional_fields['recurringAmount'] = st.number_input(
-                    "Recurring Amount", value=0,
-                    key=f"{KEY_PREFIX}_recurring_amount"
-                )
-
-            if st.checkbox("Recurring Interval", key=f"{KEY_PREFIX}_checkbox_recurringInterval"):
-                optional_fields['recurringInterval'] = st.text_input(
-                    "Recurring Interval",
-                    key=f"{KEY_PREFIX}_recurring_interval"
-                )
-
-        with col2:
-            if st.checkbox("Recurring Count", key=f"{KEY_PREFIX}_checkbox_recurringCount"):
-                optional_fields['recurringCount'] = st.number_input(
-                    "Recurring Count", value=0,
-                    key=f"{KEY_PREFIX}_recurring_count"
-                )
-
-            if st.checkbox("Charge Next Date", key=f"{KEY_PREFIX}_checkbox_chargeNextDate"):
-                optional_fields['chargeNextDate'] = st.date_input(
-                    "Charge Next Date",
-                    key=f"{KEY_PREFIX}_charge_next_date"
-                )
-
-            if st.checkbox("Charge On Date", key=f"{KEY_PREFIX}_checkbox_chargeOnDate"):
-                optional_fields['chargeOnDate'] = st.date_input(
-                    "Charge On Date",
-                    key=f"{KEY_PREFIX}_charge_on_date"
-                )
-
-    def _render_other_fields(self, optional_fields):
-        """Render other miscellaneous fields"""
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            if st.checkbox("Product Code", key=f"{KEY_PREFIX}_checkbox_productCode"):
-                optional_fields['productCode'] = st.text_input(
-                    "Product Code",
-                    key=f"{KEY_PREFIX}_product_code"
-                )
-
-            if st.checkbox("Store Credentials", key=f"{KEY_PREFIX}_checkbox_storeCredentials"):
-                optional_fields['storeCredentials'] = st.selectbox(
-                    "Store Credentials", ["F", "S", "N"],
-                    key=f"{KEY_PREFIX}_store_credentials"
-                )
-            if st.checkbox("Customer Address", key=f"{KEY_PREFIX}_checkbox_customerAddress"):
-                customer_address = {
-                    "billing": {
-                        "address1": "123 placeholder address",
-                        "city": "Ipoh",
-                        "countryCode": "MY",
-                        "postalCode": "50000"
-                            }
-                        }
-                # customer_address_json_raw = st_ace(
-                #     value=json.dumps(customer_address, indent=2),
-                #     language="json",
-                #     theme="chrome",
-                #     key="browser_json_editor",
-                #     height=200
-                # )
-
-                optional_fields['customerAddress'] = customer_address
-
-        with col2:
-            if st.checkbox("Promotion Code", key=f"{KEY_PREFIX}_checkbox_promotionCode"):
-                optional_fields['promotionCode'] = st.text_input(
-                    "Promotion Code",
-                    key=f"{KEY_PREFIX}_promotion_code"
-                )
-
-            if st.checkbox("Payment Route ID", key=f"{KEY_PREFIX}_checkbox_paymentRouteID"):
-                optional_fields['paymentRouteID'] = st.text_input(
-                    "Payment Route ID",
-                    key=f"{KEY_PREFIX}_payment_route_id"
-                )
-            if st.checkbox("Transaction Initiator", key=f"{KEY_PREFIX}_checkbox_transactionInitiator"):
-                optional_fields['transactionInitiator'] = st.selectbox(
-                    "Transaction Initiator", ["C", "M"],
-                    key=f"{KEY_PREFIX}_transaction_initiator"
-                )
-
-        with col3:
-            if st.checkbox("Allow Accumulate", key=f"{KEY_PREFIX}_checkbox_allowAccumulate"):
-                optional_fields['allowAccumulate'] = st.selectbox(
-                    "Allow Accumulate", ["Y", "N"],
-                    key=f"{KEY_PREFIX}_allow_accumulate"
-                )
-
-            if st.checkbox("Max Accumulate Amount", key=f"{KEY_PREFIX}_checkbox_maxAccumulateAmount"):
-                optional_fields['maxAccumulateAmount'] = st.number_input(
-                    "Max Accumulate Amount", value=0,
-                    key=f"{KEY_PREFIX}_max_accumulate_amount"
-                )
 
     def send_payment_request(self, payload_data, secret_key, api_url):
         """Send payment token request and return normalized result."""
@@ -727,15 +714,17 @@ def render_payment_token():
             st.session_state["idempotency_id"] = generator.generate_idempotency_id()
 
             # Prepare payload
-            payload_data = {
-                "merchantID": basic_fields['merchant_id'],
+            description = (basic_fields.get("description") or "").strip()
+            payload_data = omit_empty_fields({
+                "merchantID": basic_fields["merchant_id"],
                 "invoiceNo": st.session_state["invoice_no"],
-                "description": f"Eddy - Payment {st.session_state['invoice_no']}",
-                "amount": basic_fields['amount'],
-                "currencyCode": basic_fields['currency_code'],
-                "paymentChannel": basic_fields['payment_channel']
-            }
-            payload_data.update(optional_fields)
+                "idempotencyID": basic_fields.get("idempotency_id"),
+                "description": description or f"Eddy - Payment {st.session_state['invoice_no']}",
+                "amount": basic_fields["amount"],
+                "currencyCode": basic_fields["currency_code"],
+                "paymentChannel": basic_fields["payment_channel"],
+                **optional_fields,
+            })
 
             # Send request (details are shown in unified request/response panel)
             result = generator.send_payment_request(
@@ -750,19 +739,11 @@ def render_payment_token():
             st.session_state[PT_RESPONSE_PAYLOAD_KEY] = result.get('response', '')
             if result.get("trace") is not None:
                 save_request_trace("payment_token", result["trace"])
-
-            if result['success']:
-                st.toast(
-                    f"Payment token generated in {result.get('duration', 0):.2f}s "
-                    f"(HTTP {result.get('status_code', 'N/A')})",
-                    icon="✅",
-                )
-
-            else:
-                st.toast(
-                    f"Payment token generation failed after {result.get('duration', 0):.2f}s: "
-                    f"{result.get('error', 'Unknown error')}",
-                    icon="❌",
+            elif not result.get("success"):
+                notify_request_toast_failed(
+                    "PaymentToken",
+                    result.get("error", "Unknown error"),
+                    result.get("duration"),
                 )
 
     with col2_main:
